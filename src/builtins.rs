@@ -28,10 +28,13 @@ pub fn exit(argv: &[String]) {
             .help("the number to use for the exit status if supplied")
             .default_value("0")
             .validator(|code| {
-                if code.parse::<i32>().is_err() {
-                    Err(String::from("exit code must be a non-negative int"))
-                } else {
-                    Ok(())
+                match code.parse::<i32>() {
+                    Err(err) => Err(format!("could not parse integer from value '{}': {}", code, err)),
+                    Ok(n) => if n < 0 {
+                        Err(String::from("exit code must not be negative"))
+                    } else {
+                        Ok(())
+                    }
                 }
             }),
     );
@@ -40,7 +43,7 @@ pub fn exit(argv: &[String]) {
 
     let code: i32 = matches.value_of("code").unwrap().parse().unwrap();
 
-    std::process::exit(code);
+    std::process::exit(code as i32);
 }
 
 /// CD is builtin for changing the current working directory in the shell.
