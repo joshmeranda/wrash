@@ -1,7 +1,10 @@
+#[macro_use]
+extern crate clap;
+
 mod builtins;
 
-use std::io;
 use std::env;
+use std::io;
 
 use std::io::Write;
 
@@ -19,12 +22,14 @@ fn get_input() -> Option<Vec<String>> {
     let argv = shlex::split(buffer.as_str());
 
     match argv {
-        Some(argv) => if argv.is_empty() {
-            None
-        } else {
-            Some(argv)
-        },
-        None => None
+        Some(argv) => {
+            if argv.is_empty() {
+                None
+            } else {
+                Some(argv)
+            }
+        }
+        None => None,
     }
 }
 
@@ -33,6 +38,8 @@ fn get_input() -> Option<Vec<String>> {
 // todo: more builtins
 // todo: allow for standalone or wrapper
 fn main() {
+    let _matches = app_from_crate!().get_matches();
+
     loop {
         print!("{}", prompt());
         let _ = io::stdout().flush();
@@ -40,7 +47,7 @@ fn main() {
         let argv = if let Some(a) = get_input() {
             a
         } else {
-            continue
+            continue;
         };
 
         match argv[0].as_str() {
