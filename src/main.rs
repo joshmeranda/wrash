@@ -53,7 +53,10 @@ fn main() {
         match argv[0].as_str() {
             "exit" => builtins::exit(&argv),
             "cd" => builtins::cd(&argv),
-            _ => { /* todo: construct and run argv through subprocess */ }
-        }
+            _ => {
+                // todo: construct and run argv through subprocess
+                Ok(0)
+            }
+        };
     }
 }

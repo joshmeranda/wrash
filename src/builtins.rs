@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 
 use clap::{Arg, ErrorKind};
+use directories::UserDirs;
+
+type BuiltinResult = Result<i32, (i32, String)>;
 
 /// handle_matches is designed to allow for clean and uniform argument handling.
 macro_rules! handle_matches {
@@ -9,12 +12,9 @@ macro_rules! handle_matches {
             Err(err) => match err.kind {
                 ErrorKind::HelpDisplayed => {
                     println!("{}", err);
-                    return;
+                    return Ok(0)
                 }
-                _ => {
-                    eprintln!("Error: '{}", err);
-                    return;
-                }
+                _ => return Err((1, format!("Error: '{}", err)))
             },
             Ok(m) => m,
         }
@@ -22,7 +22,7 @@ macro_rules! handle_matches {
 }
 
 /// Exit is a builtin for exiting out of the current shell session.
-pub fn exit(argv: &[String]) {
+pub fn exit(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!().name("exit").arg(
         Arg::with_name("code")
             .help("the number to use for the exit status if supplied")
@@ -47,13 +47,10 @@ pub fn exit(argv: &[String]) {
 }
 
 /// CD is builtin for changing the current working directory in the shell.
-pub fn cd(argv: &[String]) {
+pub fn cd(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!().name("cd").arg(
         Arg::with_name("directory")
             .help("the directory to change into")
-            .default_value(
-                /* todo: get the users home directory instead  (paths create) */ "$HOME",
-            )
             .validator(|dir| {
                 if !PathBuf::from(dir.as_str()).is_dir() {
                     Err(format!("no such file or directory '{}'", dir))
@@ -65,9 +62,20 @@ pub fn cd(argv: &[String]) {
 
     let matches = handle_matches!(app, argv);
 
-    let target = matches.value_of("directory").unwrap();
+    let target = if matches.is_present("directory") {
+        PathBuf::from(matches.value_of("directory").unwrap())
+    } else {
+        let dirs = match UserDirs::new() {
+            Some(dirs) => dirs,
+            None => return Err((2, String::from("could not determine the home directory for the current user")))
+        };
+
+        dirs.home_dir().to_path_buf()
+    };
 
     if let Err(err) = std::env::set_current_dir(target) {
         eprintln!("Error changing directories: {}", err)
     }
+
+    Ok(0)
 }
