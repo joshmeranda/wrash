@@ -35,7 +35,7 @@ fn get_input() -> Option<Vec<String>> {
     }
 }
 
-fn run(command: &str, args: &[String]) -> i32 {
+fn run(command: &str, args: &[String]) -> Result<i32, i32> {
     let proc = Command::new(command).args(args).spawn();
 
     let code = match proc {
@@ -55,7 +55,11 @@ fn run(command: &str, args: &[String]) -> i32 {
         },
     };
 
-    code
+    if code == 0 {
+        Ok(code)
+    } else {
+        Err(code)
+    }
 }
 
 // todo: history
@@ -74,6 +78,9 @@ fn main() {
 
     let base = matches.value_of("cmd").unwrap();
 
+    env::set_var("WRASH_BASE", base);
+    env::set_var("WRASH_MODE", "wrapped");
+
     loop {
         print!("{}", prompt());
         let _ = io::stdout().flush();
@@ -87,15 +94,9 @@ fn main() {
         match argv[0].as_str() {
             "exit" => builtins::exit(&argv),
             "cd" => builtins::cd(&argv),
-            "fall" => builtins::fall(&argv),
-            _ => {
-                // todo: find better way to do this. running through kernal before wrapped command is counterintuitive to the goals of wrash
-                if run(argv[0].as_str(), &argv[1..]) < 0 {
-                    run(base, argv.as_slice());
-                }
-
-                Ok(0)
-            }
+            "mode" => builtins::mode(&argv), // todo: allow for switching between a "normal" and a wrapped shell
+            "setmode" => builtins::setmode(&argv),
+            _ => run(base, argv.as_slice()),
         };
     }
 }

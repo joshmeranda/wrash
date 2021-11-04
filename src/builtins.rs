@@ -1,3 +1,4 @@
+use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -29,24 +30,27 @@ macro_rules! handle_matches {
 
 /// Exit is a builtin for exiting out of the current shell session.
 pub fn exit(argv: &[String]) -> BuiltinResult {
-    let app = app_from_crate!().name("exit").arg(
-        Arg::with_name("code")
-            .help("the number to use for the exit status if supplied")
-            .default_value("0")
-            .validator(|code| match code.parse::<i32>() {
-                Err(err) => Err(format!(
-                    "could not parse integer from value '{}': {}",
-                    code, err
-                )),
-                Ok(n) => {
-                    if n < 0 {
-                        Err(String::from("exit code must not be negative"))
-                    } else {
-                        Ok(())
+    let app = app_from_crate!()
+        .name("exit")
+        .about("exit the shell with the given status code")
+        .arg(
+            Arg::with_name("code")
+                .help("the number to use for the exit status if supplied")
+                .default_value("0")
+                .validator(|code| match code.parse::<i32>() {
+                    Err(err) => Err(format!(
+                        "could not parse integer from value '{}': {}",
+                        code, err
+                    )),
+                    Ok(n) => {
+                        if n < 0 {
+                            Err(String::from("exit code must not be negative"))
+                        } else {
+                            Ok(())
+                        }
                     }
-                }
-            }),
-    );
+                }),
+        );
 
     let matches = handle_matches!(app, argv);
 
@@ -57,17 +61,20 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
 
 /// CD is builtin for changing the current working directory in the shell.
 pub fn cd(argv: &[String]) -> BuiltinResult {
-    let app = app_from_crate!().name("cd").arg(
-        Arg::with_name("directory")
-            .help("the directory to change into")
-            .validator(|dir| {
-                if !PathBuf::from(dir.as_str()).is_dir() {
-                    Err(format!("no such file or directory '{}'", dir))
-                } else {
-                    Ok(())
-                }
-            }),
-    );
+    let app = app_from_crate!()
+        .name("cd")
+        .about("change the current working directory")
+        .arg(
+            Arg::with_name("directory")
+                .help("the directory to change into")
+                .validator(|dir| {
+                    if !PathBuf::from(dir.as_str()).is_dir() {
+                        Err(format!("no such file or directory '{}'", dir))
+                    } else {
+                        Ok(())
+                    }
+                }),
+        );
 
     let matches = handle_matches!(app, argv);
 
@@ -93,42 +100,53 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
     Ok(0)
 }
 
-/// Fall will make the given argument "fall" down to the kernal as a command to be run.
-pub fn fall(argv: &[String]) -> BuiltinResult {
+/// Print the status of the current node
+pub fn mode(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
-        .name("fall")
-        .arg(Arg::with_name("command").multiple(true).required(true));
+        .name("mode")
+        .about("get the current wrash execution mode");
+
+    let _matches = handle_matches!(app, argv);
+
+    let mode = match env::var("WRASH_MODE") {
+        Ok(mode) => mode,
+        Err(err) => {
+            eprintln!(
+                "Error: couldn't find or understand value for 'WRASH_MODE': {}",
+                err
+            );
+            return Err(1);
+        }
+    };
+
+    if !vec!["wrapped", "normal"].contains(&mode.as_str()) {
+        eprintln!("invlid value for 'WRASH_MODE'");
+
+        return Err(2);
+    }
+
+    println!("{}", mode);
+
+    Ok(0)
+}
+
+/// Set the current shell mode
+pub fn setmode(argv: &[String]) -> BuiltinResult {
+    let app = app_from_crate!()
+        .name("mode")
+        .about("set the wrash execution mode")
+        .arg(
+            Arg::with_name("mode")
+                .help("the mode to set the shell to")
+                .possible_values(&["wrapped", "normal"])
+                .required(true),
+        );
 
     let matches = handle_matches!(app, argv);
 
-    // args still contains the initial command (binary / path to executable) which needs to be extracted
-    let mut args: Vec<&str> = matches.values_of("command").unwrap().collect();
+    let mode = matches.value_of("mode").unwrap();
 
-    let command = args.remove(0);
-    let args = args;
+    env::set_var("WRASH_MODE", mode);
 
-    let proc = Command::new(command).args(args).spawn();
-
-    let code = match proc {
-        Err(err) => {
-            eprintln!("Error starting '{}': {}", command, err);
-
-            -1
-        }
-        Ok(mut child) => match child.wait() {
-            // todo: better handle signal interrupts here (don't just return -1)
-            Ok(status) => status.code().unwrap_or(-2),
-            Err(err) => {
-                eprintln!("command '{}' never started: {}", command, err);
-
-                -3
-            }
-        },
-    };
-
-    if code == 0 {
-        Ok(0)
-    } else {
-        Err(code)
-    }
+    Ok(0)
 }
