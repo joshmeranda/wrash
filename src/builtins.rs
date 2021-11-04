@@ -107,9 +107,7 @@ pub fn fall(argv: &[String]) -> BuiltinResult {
     let command = args.remove(0);
     let args = args;
 
-    let proc = Command::new(command)
-        .args(args)
-        .spawn();
+    let proc = Command::new(command).args(args).spawn();
 
     let code = match proc {
         Err(err) => {
