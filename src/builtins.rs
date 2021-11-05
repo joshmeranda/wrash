@@ -100,7 +100,7 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
     Ok(0)
 }
 
-/// Print the status of the current node
+/// Print the status of the current node.
 pub fn mode(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("mode")
@@ -130,7 +130,7 @@ pub fn mode(argv: &[String]) -> BuiltinResult {
     Ok(0)
 }
 
-/// Set the current shell mode
+/// Set the current shell mode.
 pub fn setmode(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("mode")
@@ -147,6 +147,28 @@ pub fn setmode(argv: &[String]) -> BuiltinResult {
     let mode = matches.value_of("mode").unwrap();
 
     env::set_var("WRASH_MODE", mode);
+
+    Ok(0)
+}
+
+/// Show help text for using the shell.
+pub fn help(_argv: &[String]) -> BuiltinResult {
+    println!(r"Thanks for using WraSh!
+
+WraSh is designed to provide a very minimal 'no frills' interactive wrapper
+shell around a base command. For example if the base command was 'git', you
+could call 'add -A' rather then 'git add -A'.
+
+You may also call all the normal commands on your system with WraSh. You need
+to simply change the operation mode with 'setmode normal' run any commands you
+want like 'whoami' then change back to wrapper mode 'setmode wrapper'
+
+Below is a list of supported builtins, pass '--help' to any o them for more information:
+    exit
+    cd
+    mode
+    setmode
+    help");
 
     Ok(0)
 }

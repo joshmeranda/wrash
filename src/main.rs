@@ -96,6 +96,7 @@ fn main() {
             "cd" => builtins::cd(&argv),
             "mode" => builtins::mode(&argv), // todo: allow for switching between a "normal" and a wrapped shell
             "setmode" => builtins::setmode(&argv),
+            "help" => builtins::help(&argv),
             _ => run(base, argv.as_slice()),
         };
     }
