@@ -7,6 +7,8 @@ use directories::UserDirs;
 
 type BuiltinResult = Result<i32, i32>;
 
+// todo: how to handle clashes between shell builtins and base command sub-0commands?
+//   add back the 'fall' builtin? 'exec'? 'builtin' ?
 /// handle_matches is designed to allow for clean and uniform argument handling.
 macro_rules! handle_matches {
     ($app:ident, $argv:ident) => {
@@ -119,8 +121,8 @@ pub fn mode(argv: &[String]) -> BuiltinResult {
         }
     };
 
-    if !vec!["wrapped", "normal"].contains(&mode.as_str()) {
-        eprintln!("invlid value for 'WRASH_MODE'");
+    if matches!(mode.as_str(), "wrapped" | "normals") {
+        eprintln!("invalid value for 'WRASH_MODE'");
 
         return Err(2);
     }
@@ -152,7 +154,11 @@ pub fn setmode(argv: &[String]) -> BuiltinResult {
 }
 
 /// Show help text for using the shell.
-pub fn help(_argv: &[String]) -> BuiltinResult {
+pub fn help(argv: &[String]) -> BuiltinResult {
+    let app = app_from_crate!().name("help").about("show some basic information about WraSh and how to use it");
+
+    handle_matches!(app, argv);
+
     println!(r"Thanks for using WraSh!
 
 WraSh is designed to provide a very minimal 'no frills' interactive wrapper
