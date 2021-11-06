@@ -4,6 +4,7 @@ use std::process::Command;
 
 use clap::{Arg, ErrorKind};
 use directories::UserDirs;
+use crate::history::History;
 
 type BuiltinResult = Result<i32, i32>;
 
@@ -31,6 +32,8 @@ macro_rules! handle_matches {
 }
 
 /// Exit is a builtin for exiting out of the current shell session.
+///
+/// todo: change exit to tell teh shll to exit rather than ending the process right away
 pub fn exit(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("exit")
@@ -175,6 +178,19 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
     mode
     setmode
     help");
+
+    Ok(0)
+}
+
+/// Examine and manipulate the command history, if the command was run in "wrapped" mode,
+///
+/// todo: show / search commands (allow specifying offset or number)
+///   merge the base command with the given args if run as 'wrapped'
+///   show either normal commands, wrapped commands, both (both normal and wrapped but only if the wrapped base commands match), or all
+/// todo: allow for manual command sync
+pub fn history(history: &History, argv: &[String]) -> BuiltinResult {
+    let app = app_from_crate!().name("history").about("examine and manipulate the command history");
+    let matches = handle_matches!(app, argv);
 
     Ok(0)
 }

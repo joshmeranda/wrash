@@ -2,6 +2,7 @@
 extern crate clap;
 
 mod builtins;
+mod history;
 
 use std::env;
 use std::io;
@@ -9,19 +10,27 @@ use std::io::Write;
 use std::process::Command;
 
 use clap::Arg;
+use crate::history::{History, HistoryEntry};
 
+/// Generate the command prompt
+///
+/// todo: allow some user configurability
 fn prompt() -> String {
     format!("[{}] $ ", env::var("USER").unwrap())
 }
 
-fn get_input() -> Option<Vec<String>> {
+// todo: a shell sessions would simplify this  function signature
+fn get_input<'base: 'history, 'history>(history: &'history mut History<'base>, base: &'base str, mode: String) -> Option<Vec<String>> {
     let mut buffer = String::new();
 
     if let Err(err) = io::stdin().read_line(&mut buffer) {
-        eprintln!("Error readinn from stind: {}", err)
+        eprintln!("Error reading from stind: {}", err)
     }
 
     let argv = shlex::split(buffer.as_str());
+
+    let entry = HistoryEntry::new(buffer, base, mode);
+    history.push(entry);
 
     match argv {
         Some(argv) => {
@@ -64,8 +73,8 @@ fn run(command: &str, args: &[String]) -> Result<i32, i32> {
 
 // todo: history
 // todo: up-arrow for last command(s)
-// todo: more builtins
-// todo: allow for standalone or wrapper
+// todo: shell mode enum
+// todo: shell session?
 fn main() {
     let matches = app_from_crate!()
         .arg(
@@ -76,6 +85,8 @@ fn main() {
         )
         .get_matches();
 
+    let mut history = History::new();
+
     let base = matches.value_of("cmd").unwrap();
 
     env::set_var("WRASH_BASE", base);
@@ -85,7 +96,7 @@ fn main() {
         print!("{}", prompt());
         let _ = io::stdout().flush();
 
-        let argv = if let Some(a) = get_input() {
+        let argv = if let Some(a) = get_input(&mut history, base, env::var("WRASH_MODE").unwrap().to_string()) {
             a
         } else {
             continue;
@@ -99,5 +110,10 @@ fn main() {
             "help" => builtins::help(&argv),
             _ => run(base, argv.as_slice()),
         };
+    }
+
+    // todo: consider writing to temporary file to be merged into the master history later
+    if let Err(err) = history.sync() {
+        eprintln!("Error: could not write sessions history to history file: {}", err);
     }
 }
