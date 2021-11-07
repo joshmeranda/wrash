@@ -1,10 +1,10 @@
 use std::env;
 use std::path::PathBuf;
-use std::process::Command;
 
-use clap::{Arg, ErrorKind};
+use crate::Session;
+use clap::{Arg, ErrorKind, SubCommand};
 use directories::UserDirs;
-use crate::history::History;
+use regex::Regex;
 
 type BuiltinResult = Result<i32, i32>;
 
@@ -158,11 +158,14 @@ pub fn setmode(argv: &[String]) -> BuiltinResult {
 
 /// Show help text for using the shell.
 pub fn help(argv: &[String]) -> BuiltinResult {
-    let app = app_from_crate!().name("help").about("show some basic information about WraSh and how to use it");
+    let app = app_from_crate!()
+        .name("help")
+        .about("show some basic information about WraSh and how to use it");
 
     handle_matches!(app, argv);
 
-    println!(r"Thanks for using WraSh!
+    println!(
+        r"Thanks for using WraSh!
 
 WraSh is designed to provide a very minimal 'no frills' interactive wrapper
 shell around a base command. For example if the base command was 'git', you
@@ -177,7 +180,8 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
     cd
     mode
     setmode
-    help");
+    help"
+    );
 
     Ok(0)
 }
@@ -188,9 +192,33 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 ///   merge the base command with the given args if run as 'wrapped'
 ///   show either normal commands, wrapped commands, both (both normal and wrapped but only if the wrapped base commands match), or all
 /// todo: allow for manual command sync
-pub fn history(history: &History, argv: &[String]) -> BuiltinResult {
-    let app = app_from_crate!().name("history").about("examine and manipulate the command history");
+pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
+    let app = app_from_crate!()
+        .name("history")
+        .about("examine and manipulate the command history")
+        .subcommand(
+            SubCommand::with_name("sync")
+                .about("flush the current in-memory history into the history file"),
+        );
+
     let matches = handle_matches!(app, argv);
+
+    match matches.subcommand() {
+        ("sync", Some(_)) => {
+            if let Err(err) = session.history.sync() {
+                eprintln!("Error saving to history file: {}", err)
+            }
+        }
+        _ => {
+            for (i, entry) in session.history.iter().enumerate() {
+                if let Some(base) = &entry.base {
+                    println!("{}: {} {}", i, base, entry.cmd);
+                } else {
+                    println!("{}: {}", i, entry.cmd);
+                }
+            }
+        }
+    }
 
     Ok(0)
 }

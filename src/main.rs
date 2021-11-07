@@ -9,39 +9,53 @@ use std::io;
 use std::io::Write;
 use std::process::Command;
 
-use clap::Arg;
 use crate::history::{History, HistoryEntry};
+use clap::Arg;
+
+pub struct Session<'shell> {
+    history: History,
+
+    base: &'shell str,
+}
+
+impl<'shell> Session<'shell> {
+    pub fn new(history: History, base: &'shell str) -> Session<'shell> {
+        Session { history, base }
+    }
+
+    pub fn mode(&self) -> Result<String, env::VarError> {
+        env::var("WRASH_MODE")
+    }
+
+    pub fn take_input(&mut self) -> String {
+        let mut buffer = String::new();
+
+        if let Err(err) = io::stdin().read_line(&mut buffer) {
+            eprintln!("Error reading from stind: {}", err)
+        }
+
+        buffer
+    }
+
+    pub fn push_to_history(&mut self, command: &str) {
+        match self.mode() {
+            Ok(m) => {
+                let entry = HistoryEntry::new(command.trim().to_string(), None, m);
+
+                self.history.push(entry);
+            },
+            Err(err) => eprintln!(
+                concat!("could not determine the current wrash execution mode: {}\n",
+                "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err)
+        }
+    }
+}
 
 /// Generate the command prompt
 ///
 /// todo: allow some user configurability
 fn prompt() -> String {
     format!("[{}] $ ", env::var("USER").unwrap())
-}
-
-// todo: a shell sessions would simplify this  function signature
-fn get_input<'base: 'history, 'history>(history: &'history mut History<'base>, base: &'base str, mode: String) -> Option<Vec<String>> {
-    let mut buffer = String::new();
-
-    if let Err(err) = io::stdin().read_line(&mut buffer) {
-        eprintln!("Error reading from stind: {}", err)
-    }
-
-    let argv = shlex::split(buffer.as_str());
-
-    let entry = HistoryEntry::new(buffer, base, mode);
-    history.push(entry);
-
-    match argv {
-        Some(argv) => {
-            if argv.is_empty() {
-                None
-            } else {
-                Some(argv)
-            }
-        }
-        None => None,
-    }
 }
 
 fn run(command: &str, args: &[String]) -> Result<i32, i32> {
@@ -85,9 +99,10 @@ fn main() {
         )
         .get_matches();
 
-    let mut history = History::new();
-
+    let history = History::new();
     let base = matches.value_of("cmd").unwrap();
+
+    let mut session = Session::new(history, base);
 
     env::set_var("WRASH_BASE", base);
     env::set_var("WRASH_MODE", "wrapped");
@@ -96,24 +111,46 @@ fn main() {
         print!("{}", prompt());
         let _ = io::stdout().flush();
 
-        let argv = if let Some(a) = get_input(&mut history, base, env::var("WRASH_MODE").unwrap().to_string()) {
-            a
-        } else {
-            continue;
+        let cmd = session.take_input();
+        let argv = match shlex::split(cmd.as_str()) {
+            Some(args) => args,
+            None => {
+                eprintln!("Error splitting command line arguments");
+                continue;
+            }
         };
 
-        match argv[0].as_str() {
+        let _result = match argv[0].as_str() {
             "exit" => builtins::exit(&argv),
             "cd" => builtins::cd(&argv),
             "mode" => builtins::mode(&argv), // todo: allow for switching between a "normal" and a wrapped shell
             "setmode" => builtins::setmode(&argv),
             "help" => builtins::help(&argv),
-            _ => run(base, argv.as_slice()),
+            "history" => builtins::history(&mut session, &argv),
+            _ => match session.mode() {
+                Ok(m) => match m.as_str() {
+                    "wrapped" => run(base, argv.as_slice()),
+                    "normal" => run(argv[0].as_str(), &argv[1..]),
+                    _ => unreachable!(),
+                },
+                Err(err) => {
+                    eprintln!(
+                        concat!("could not determine the current wrash execution mode: {}\n",
+                        "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err);
+
+                    Err(-1)
+                }
+            },
         };
+
+        session.push_to_history(cmd.as_str());
     }
 
     // todo: consider writing to temporary file to be merged into the master history later
-    if let Err(err) = history.sync() {
-        eprintln!("Error: could not write sessions history to history file: {}", err);
-    }
+    // if let Err(err) = history.sync() {
+    //     eprintln!(
+    //         "Error: could not write sessions history to history file: {}",
+    //         err
+    //     );
+    // }
 }
