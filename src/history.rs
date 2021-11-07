@@ -9,14 +9,17 @@ use xdg::BaseDirectories;
 /// todo: add base command
 /// todo: serialize entry
 pub struct HistoryEntry {
-    pub cmd: String,
+    pub argv: String,
     pub base: Option<String>,
     pub mode: String,
 }
 
 impl HistoryEntry {
-    pub fn new(cmd: String, base: Option<String>, mode: String) -> HistoryEntry {
-        HistoryEntry { cmd, base, mode }
+    /// Construct a new [HistoryEntity] where [argv] contains the contents argv
+    /// as a single String, [base] is the wrapped base command if there is one,
+    /// and [mode] is the shell execution mode.
+    pub fn new(argv: String, base: Option<String>, mode: String) -> HistoryEntry {
+        HistoryEntry { argv, base, mode }
     }
 }
 
@@ -52,6 +55,16 @@ impl History {
             }
             Err(_) => vec![],
         };
+
+        // sample history entries for manual testing
+        // let history = vec![
+        //     HistoryEntry::new("status".to_string(), Some("git".to_string()), "wrapped".to_string()),
+        //     HistoryEntry::new("status docker".to_string(), Some("systemctl".to_string()), "wrapped".to_string()),
+        //     HistoryEntry::new("add -A".to_string(), Some("git".to_string()), "wrapped".to_string()),
+        //     HistoryEntry::new("commit --message 'some sample commit message'".to_string(), Some("git".to_string()), "wrapped".to_string()),
+        //     HistoryEntry::new("ls -l --color auto --group-directories-first".to_string(), None, "normal".to_string()),
+        //     HistoryEntry::new("whoami".to_string(), None, "normal".to_string()),
+        // ];
 
         Self {
             history,

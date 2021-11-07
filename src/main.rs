@@ -23,10 +23,17 @@ impl<'shell> Session<'shell> {
         Session { history, base }
     }
 
-    pub fn mode(&self) -> Result<String, env::VarError> {
+    pub fn get_mode(&self) -> Result<String, env::VarError> {
         env::var("WRASH_MODE")
     }
 
+    pub fn get_base(&self) -> String {
+        self.base.to_string()
+    }
+
+    /// Take user input.
+    ///
+    /// todo: turn of immediate echo to  we can handle things like up-arrow for last command and escape sequences
     pub fn take_input(&mut self) -> String {
         let mut buffer = String::new();
 
@@ -37,10 +44,13 @@ impl<'shell> Session<'shell> {
         buffer
     }
 
+    /// Push the given command to the back of the in-memory history stack.
+    ///
+    /// todo: check if the given command is a builtin to avoid adding unneeded base command
     pub fn push_to_history(&mut self, command: &str) {
-        match self.mode() {
+        match self.get_mode() {
             Ok(m) => {
-                let entry = HistoryEntry::new(command.trim().to_string(), None, m);
+                let entry = HistoryEntry::new(command.trim().to_string(), if m == "wrapped" { Some(self.get_base()) } else { None }, m);
 
                 self.history.push(entry);
             },
@@ -111,6 +121,7 @@ fn main() {
         print!("{}", prompt());
         let _ = io::stdout().flush();
 
+        // todo: we will likely want to do the splitting ourselves or add post-processing to allow for globbing so that we can handle globs better
         let cmd = session.take_input();
         let argv = match shlex::split(cmd.as_str()) {
             Some(args) => args,
@@ -123,11 +134,11 @@ fn main() {
         let _result = match argv[0].as_str() {
             "exit" => builtins::exit(&argv),
             "cd" => builtins::cd(&argv),
-            "mode" => builtins::mode(&argv), // todo: allow for switching between a "normal" and a wrapped shell
+            "mode" => builtins::mode(&argv),
             "setmode" => builtins::setmode(&argv),
             "help" => builtins::help(&argv),
             "history" => builtins::history(&mut session, &argv),
-            _ => match session.mode() {
+            _ => match session.get_mode() {
                 Ok(m) => match m.as_str() {
                     "wrapped" => run(base, argv.as_slice()),
                     "normal" => run(argv[0].as_str(), &argv[1..]),
@@ -146,7 +157,7 @@ fn main() {
         session.push_to_history(cmd.as_str());
     }
 
-    // todo: consider writing to temporary file to be merged into the master history later
+    // todo: consider writing to temporary file to be merged into the master history later on error
     // if let Err(err) = history.sync() {
     //     eprintln!(
     //         "Error: could not write sessions history to history file: {}",

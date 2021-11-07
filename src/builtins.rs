@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use crate::Session;
 use clap::{Arg, ErrorKind, SubCommand};
 use directories::UserDirs;
-use regex::Regex;
 
 type BuiltinResult = Result<i32, i32>;
 
@@ -199,6 +198,10 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
         .subcommand(
             SubCommand::with_name("sync")
                 .about("flush the current in-memory history into the history file"),
+        )
+        .subcommand(SubCommand::with_name("filter").about("filter history to only show the command you want to see")
+            .arg(Arg::with_name("filter-mode").short("m").long("mode").min_values(0).help("only show commands from the given shell execution mode, if no value is given the current execution mode is used"))
+            .arg(Arg::with_name("filter-base").short("b").long("base").min_values(0).help("only show commands whose 'base' matches the given base or have no base, if no value is given the current value is used"))
         );
 
     let matches = handle_matches!(app, argv);
@@ -209,12 +212,52 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                 eprintln!("Error saving to history file: {}", err)
             }
         }
+        ("filter", Some(sub_matches)) => {
+            let filter_base = sub_matches.is_present("filter-base");
+            let filter_mode = sub_matches.is_present("filter-mode");
+
+            let current_base = session.get_base();
+            let current_mode = match session.get_mode() {
+                Ok(m) => m,
+                Err(err) => {
+                    eprintln!(
+                        concat!("could not determine the current wrash execution mode: {}\n",
+                        "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err);
+
+                    return Err(-1)
+                }
+            };
+
+            println!("=== 000 {} : {} ### {} : {} ===", filter_base, current_base, filter_mode, current_mode);
+
+            let entries = session.history.iter().filter(|entry| {
+                if filter_mode && entry.mode != current_mode {
+                    println!("=== 001 ===");
+                    return false;
+                }
+
+                if entry.base.is_some() && filter_base && entry.base.as_ref().unwrap().as_str() != current_base.as_str() {
+                    println!("=== 002 ===");
+                    return false;
+                }
+
+                true
+            });
+
+            for (i, entry) in entries.enumerate() {
+                if let Some(base) = &entry.base {
+                    println!("{}: {} {}", i, base, entry.argv);
+                } else {
+                    println!("{}: {}", i, entry.argv);
+                }
+            }
+        }
         _ => {
             for (i, entry) in session.history.iter().enumerate() {
                 if let Some(base) = &entry.base {
-                    println!("{}: {} {}", i, base, entry.cmd);
+                    println!("{}: {} {}", i, base, entry.argv);
                 } else {
-                    println!("{}: {}", i, entry.cmd);
+                    println!("{}: {}", i, entry.argv);
                 }
             }
         }
