@@ -1,8 +1,8 @@
 use std::env;
 use std::path::PathBuf;
-use std::process::Command;
 
-use clap::{Arg, ErrorKind};
+use crate::Session;
+use clap::{Arg, ErrorKind, SubCommand};
 use directories::UserDirs;
 
 type BuiltinResult = Result<i32, i32>;
@@ -31,6 +31,8 @@ macro_rules! handle_matches {
 }
 
 /// Exit is a builtin for exiting out of the current shell session.
+///
+/// todo: change exit to tell teh shll to exit rather than ending the process right away
 pub fn exit(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("exit")
@@ -155,11 +157,14 @@ pub fn setmode(argv: &[String]) -> BuiltinResult {
 
 /// Show help text for using the shell.
 pub fn help(argv: &[String]) -> BuiltinResult {
-    let app = app_from_crate!().name("help").about("show some basic information about WraSh and how to use it");
+    let app = app_from_crate!()
+        .name("help")
+        .about("show some basic information about WraSh and how to use it");
 
     handle_matches!(app, argv);
 
-    println!(r"Thanks for using WraSh!
+    println!(
+        r"Thanks for using WraSh!
 
 WraSh is designed to provide a very minimal 'no frills' interactive wrapper
 shell around a base command. For example if the base command was 'git', you
@@ -174,7 +179,89 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
     cd
     mode
     setmode
-    help");
+    help"
+    );
+
+    Ok(0)
+}
+
+/// Examine and manipulate the command history, if the command was run in "wrapped" mode,
+///
+/// todo: show / search commands (allow specifying offset or number)
+///   merge the base command with the given args if run as 'wrapped'
+///   show either normal commands, wrapped commands, both (both normal and wrapped but only if the wrapped base commands match), or all
+/// todo: allow for manual command sync
+pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
+    let app = app_from_crate!()
+        .name("history")
+        .about("examine and manipulate the command history")
+        .subcommand(
+            SubCommand::with_name("sync")
+                .about("flush the current in-memory history into the history file"),
+        )
+        .subcommand(SubCommand::with_name("filter").about("filter history to only show the command you want to see")
+            .arg(Arg::with_name("filter-mode").short("m").long("mode").min_values(0).help("only show commands from the given shell execution mode, if no value is given the current execution mode is used"))
+            .arg(Arg::with_name("filter-base").short("b").long("base").min_values(0).help("only show commands whose 'base' matches the given base or have no base, if no value is given the current value is used"))
+        );
+
+    let matches = handle_matches!(app, argv);
+
+    match matches.subcommand() {
+        ("sync", Some(_)) => {
+            if let Err(err) = session.history.sync() {
+                eprintln!("Error saving to history file: {}", err)
+            }
+        }
+        ("filter", Some(sub_matches)) => {
+            let filter_base = sub_matches.is_present("filter-base");
+            let filter_mode = sub_matches.is_present("filter-mode");
+
+            let current_base = session.get_base();
+            let current_mode = match session.get_mode() {
+                Ok(m) => m,
+                Err(err) => {
+                    eprintln!(
+                        concat!("could not determine the current wrash execution mode: {}\n",
+                        "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err);
+
+                    return Err(-1)
+                }
+            };
+
+            println!("=== 000 {} : {} ### {} : {} ===", filter_base, current_base, filter_mode, current_mode);
+
+            let entries = session.history.iter().filter(|entry| {
+                if filter_mode && entry.mode != current_mode {
+                    println!("=== 001 ===");
+                    return false;
+                }
+
+                if entry.base.is_some() && filter_base && entry.base.as_ref().unwrap().as_str() != current_base.as_str() {
+                    println!("=== 002 ===");
+                    return false;
+                }
+
+                true
+            });
+
+            for (i, entry) in entries.enumerate() {
+                if let Some(base) = &entry.base {
+                    println!("{}: {} {}", i, base, entry.argv);
+                } else {
+                    println!("{}: {}", i, entry.argv);
+                }
+            }
+        }
+        _ => {
+            for (i, entry) in session.history.iter().enumerate() {
+                if let Some(base) = &entry.base {
+                    println!("{}: {} {}", i, base, entry.argv);
+                } else {
+                    println!("{}: {}", i, entry.argv);
+                }
+            }
+        }
+    }
 
     Ok(0)
 }
