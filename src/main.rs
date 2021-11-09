@@ -4,15 +4,15 @@ extern crate clap;
 mod builtins;
 mod history;
 
+use std::cmp::Ordering;
 use std::env;
-use std::io;
-use std::io::{Read, Write};
+use std::io::{self, Write};
 use std::process::Command;
 
 use clap::Arg;
 
-use termion::clear::{AfterCursor, All, BeforeCursor};
-use termion::cursor::{Goto, Left, Restore, Right, Save};
+use termion::clear::{AfterCursor, All};
+use termion::cursor::{Goto, Restore, Right, Save};
 use termion::event::Key;
 use termion::input::TermRead;
 
@@ -41,14 +41,13 @@ impl<'shell> Session<'shell> {
 
     /// Take user input.
     ///
-    /// todo: set cursor to end of command from history
-    /// todo: return resutl to use all the write! results
-    pub fn take_input(&mut self) -> String {
+    /// todo: return result to use all the write! results
+    pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();
 
         let stdin = io::stdin();
-        let mut stdin = stdin.lock();
+        let stdin = stdin.lock();
 
         let mut buffer = String::new();
 
@@ -59,10 +58,10 @@ impl<'shell> Session<'shell> {
 
         let prompt = prompt();
 
-        write!(stdout, "{}{}", Save, prompt).unwrap();
-        stdout.flush().unwrap();
+        write!(stdout, "{}{}", Save, prompt)?;
+        stdout.flush()?;
 
-        write!(stdout, "{}", Right(1));
+        write!(stdout, "{}", Right(1))?;
 
         for key in stdin.keys() {
             match key.unwrap() {
@@ -114,14 +113,25 @@ impl<'shell> Session<'shell> {
                 },
                 Key::Down => {
                     if let Some(n) = history_offset {
-                        if n > 0 {
-                            history_offset = Some(n - 1);
-                        } else if n == 0 {
-                            history_offset = None;
+                        match n.cmp(&0usize) {
+                            Ordering::Greater => history_offset = Some(n - 1),
+                            Ordering::Equal => {
+                                history_offset = None;
 
-                            buffer = buffer_bak.unwrap();
-                            buffer_bak = None;
+                                buffer = buffer_bak.unwrap();
+                                buffer_bak = None;
+                            }
+                            _ => unreachable!(),
                         }
+
+                        // if n > 0 {
+                        //     history_offset = Some(n - 1);
+                        // } else if n == 0 {
+                        //     history_offset = None;
+                        //
+                        //     buffer = buffer_bak.unwrap();
+                        //     buffer_bak = None;
+                        // }
                     }
 
                     if let Some(history_offset) = history_offset {
@@ -144,7 +154,8 @@ impl<'shell> Session<'shell> {
 
                 // screen control
                 Key::Ctrl('l') => {
-                    write!(stdout, "{}{}{}{}{}", Restore, All, Right(offset as u16), Goto(1, 1), Save);
+                    // todo: write lines and scroll rather than clearing screen
+                    write!(stdout, "{}{}{}{}{}", Restore, All, Right(offset as u16), Goto(1, 1), Save)?;
 
                     offset = 0;
                 },
@@ -153,14 +164,14 @@ impl<'shell> Session<'shell> {
             };
 
             // todo: will have issues when deleting characters
-            write!(stdout, "{}{}{}{}{}{}", Restore, AfterCursor, prompt, buffer, Restore, Right((prompt.len() + offset) as u16));
-            stdout.flush();
+            write!(stdout, "{}{}{}{}{}{}", Restore, AfterCursor, prompt, buffer, Restore, Right((prompt.len() + offset) as u16))?;
+            stdout.flush()?;
         }
 
-        writeln!(stdout, "{}", Restore);
-        stdout.flush();
+        writeln!(stdout, "{}", Restore)?;
+        stdout.flush()?;
 
-        buffer
+        Ok(buffer)
     }
 
     /// Push the given command to the back of the in-memory history stack.
@@ -241,7 +252,14 @@ fn main() {
         let _ = io::stdout().flush();
 
         // todo: we will likely want to do the splitting ourselves or add post-processing to allow for globbing so that we can handle globs better
-        let cmd = session.take_input();
+        let cmd = match  session.take_input() {
+            Ok(c) => c,
+            Err(err) => {
+                eprintln!("Error: could not take input: {}", err);
+                continue;
+            }
+        };
+
         let argv = match shlex::split(cmd.as_str()) {
             Some(args) => args,
             None => {
@@ -250,7 +268,7 @@ fn main() {
             }
         };
 
-        if argv.len() == 0 {
+        if argv.is_empty() {
             continue
         }
 
