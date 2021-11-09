@@ -66,11 +66,7 @@ impl<'shell> Session<'shell> {
 
         for key in stdin.keys() {
             match key.unwrap() {
-                Key::Char('\n') => {
-                    writeln!(stdout, "{}", Restore);
-                    stdout.flush();
-                    break
-                },
+                Key::Char('\n') => break,
                 Key::Char(c) => {
                     if offset == buffer.len() {
                         buffer.push(c);
@@ -139,6 +135,8 @@ impl<'shell> Session<'shell> {
                     offset = 0;
                 },
                 Key::Ctrl('k') => buffer.replace_range(offset.., ""),
+                Key::Ctrl('a') => offset = 0,
+                Key::Ctrl('e') => offset = buffer.len(),
                 _ => { /* do nothing */ }
             };
 
@@ -146,6 +144,9 @@ impl<'shell> Session<'shell> {
             write!(stdout, "{}{}{}{}{}{}", Restore, AfterCursor, prompt, buffer, Restore, Right((prompt.len() + offset) as u16));
             stdout.flush();
         }
+
+        writeln!(stdout, "{}", Restore);
+        stdout.flush();
 
         buffer
     }
