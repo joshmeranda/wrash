@@ -11,8 +11,8 @@ use std::process::Command;
 
 use clap::Arg;
 
-use termion::clear::{AfterCursor, BeforeCursor};
-use termion::cursor::{Left, Restore, Right, Save};
+use termion::clear::{AfterCursor, All, BeforeCursor};
+use termion::cursor::{Goto, Left, Restore, Right, Save};
 use termion::event::Key;
 use termion::input::TermRead;
 
@@ -130,13 +130,25 @@ impl<'shell> Session<'shell> {
                         }
                     }
                 },
+
+                // content deletion
                 Key::Ctrl('u') => {
                     buffer.replace_range(..offset, "");
                     offset = 0;
                 },
                 Key::Ctrl('k') => buffer.replace_range(offset.., ""),
+
+                // cursor control
                 Key::Ctrl('a') => offset = 0,
                 Key::Ctrl('e') => offset = buffer.len(),
+
+                // screen control
+                Key::Ctrl('l') => {
+                    write!(stdout, "{}{}{}{}{}", Restore, All, Right(offset as u16), Goto(1, 1), Save);
+
+                    offset = 0;
+                },
+
                 _ => { /* do nothing */ }
             };
 
