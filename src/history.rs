@@ -21,6 +21,13 @@ impl HistoryEntry {
     pub fn new(argv: String, base: Option<String>, mode: String) -> HistoryEntry {
         HistoryEntry { argv, base, mode }
     }
+
+    pub fn get_command(&self) -> String {
+        match self.base.clone() {
+            Some(base) => format!("{} {}", base, self.argv.clone()),
+            None => self.argv.clone(),
+        }
+    }
 }
 
 pub struct History {
@@ -77,7 +84,11 @@ impl History {
     }
 
     pub fn get_from_end(&self, index: usize) -> Option<&HistoryEntry> {
-        self.history.get(self.len() - 1 - index)
+        if index >= self.len() {
+            None
+        } else {
+            self.history.get(self.len() - 1 - index)
+        }
     }
 
     pub fn push(&mut self, entry: HistoryEntry) {

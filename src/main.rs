@@ -41,7 +41,8 @@ impl<'shell> Session<'shell> {
 
     /// Take user input.
     ///
-    /// todo: turn of immediate echo to  we can handle things like up-arrow for last command and escape sequences
+    /// todo: set cursor to end of command from history
+    /// todo: return resutl to use all the write! results
     pub fn take_input(&mut self) -> String {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();
@@ -50,7 +51,10 @@ impl<'shell> Session<'shell> {
         let mut stdin = stdin.lock();
 
         let mut buffer = String::new();
+
         let mut offset = 0usize;
+        let mut history_offset = None;
+        let mut buffer_bak = None;
 
         let prompt = prompt();
 
@@ -92,6 +96,39 @@ impl<'shell> Session<'shell> {
                 Key::Right => {
                     if offset < buffer.len() {
                         offset += 1;
+                    }
+                },
+                Key::Up => {
+                    match history_offset {
+                        Some(n) => if n < self.history.len() {
+                            history_offset = Some(n + 1);
+                        },
+                        None => {
+                            history_offset = Some(0);
+                            buffer_bak = Some(buffer.clone());
+                        }
+                    };
+
+                    if let Some(entry) = self.history.get_from_end(history_offset.unwrap()) {
+                        buffer = entry.get_command();
+                    }
+                },
+                Key::Down => {
+                    if let Some(n) = history_offset {
+                        if n > 0 {
+                            history_offset = Some(n - 1);
+                        } else if n == 0 {
+                            history_offset = None;
+
+                            buffer = buffer_bak.unwrap();
+                            buffer_bak = None;
+                        }
+                    }
+
+                    if let Some(history_offset) = history_offset {
+                        if let Some(entry) = self.history.get_from_end(history_offset) {
+                            buffer = entry.get_command();
+                        }
                     }
                 }
                 _ => { /* do nothing */ }

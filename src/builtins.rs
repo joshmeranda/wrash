@@ -229,16 +229,12 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                 }
             };
 
-            println!("=== 000 {} : {} ### {} : {} ===", filter_base, current_base, filter_mode, current_mode);
-
             let entries = session.history.iter().filter(|entry| {
                 if filter_mode && entry.mode != current_mode {
-                    println!("=== 001 ===");
                     return false;
                 }
 
                 if entry.base.is_some() && filter_base && entry.base.as_ref().unwrap().as_str() != current_base.as_str() {
-                    println!("=== 002 ===");
                     return false;
                 }
 
@@ -246,20 +242,13 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
             });
 
             for (i, entry) in entries.enumerate() {
-                if let Some(base) = &entry.base {
-                    println!("{}: {} {}", i, base, entry.argv);
-                } else {
-                    println!("{}: {}", i, entry.argv);
-                }
+                println!("{}: {}", i, entry.get_command());
             }
         }
         _ => {
+            // todo: filter mode by default?
             for (i, entry) in session.history.iter().enumerate() {
-                if let Some(base) = &entry.base {
-                    println!("{}: {} {}", i, base, entry.argv);
-                } else {
-                    println!("{}: {}", i, entry.argv);
-                }
+                println!("{}: {}", i, entry.get_command());
             }
         }
     }
