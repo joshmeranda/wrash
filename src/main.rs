@@ -67,8 +67,14 @@ impl<'shell> Session<'shell> {
                     break
                 },
                 Key::Char(c) => {
-                    buffer.push(c);
-                    offset += 1;
+                    if offset == buffer.len() {
+                        buffer.push(c);
+                        offset += 1;
+                    } else {
+                        buffer.insert(offset, c);
+                        offset += 1;
+                    }
+
                 },
                 Key::Backspace => {
                     if offset != 0 && offset == buffer.len() {
@@ -78,30 +84,21 @@ impl<'shell> Session<'shell> {
                         buffer.remove(offset);
                     }
                 }
-                // Key::Left => {
-                //     write!(stdout, "{}", Left(1));
-                //
-                //     if offset != 0 {
-                //         offset -= 1;
-                //     }
-                // },
-                // Key::Right => {
-                //     write!(stdout, "{}", Right(1));
-                //
-                //     if offset < buffer.len() {
-                //         offset += 1;
-                //     }
-                // },
-                // Key::Up => {} // todo: up history
-                // Key::Down => {} // todo: down history
-                // Key::Delete => {} // todo: delete character
-                // Key::Alt(_) => {} // todo: handle keybindings
-                // Key::Ctrl(_) => {} // todo: handle keybindings
+                Key::Left => {
+                    if offset != 0 {
+                        offset -= 1;
+                    }
+                },
+                Key::Right => {
+                    if offset < buffer.len() {
+                        offset += 1;
+                    }
+                }
                 _ => { /* do nothing */ }
             };
 
             // todo: will have issues when deleting characters
-            write!(stdout, "{}{}{}{}", Restore, AfterCursor, prompt, buffer);
+            write!(stdout, "{}{}{}{}{}{}", Restore, AfterCursor, prompt, buffer, Restore, Right((prompt.len() + offset) as u16));
             stdout.flush();
         }
 
