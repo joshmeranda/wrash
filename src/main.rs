@@ -91,6 +91,7 @@ impl<'shell> Session<'shell> {
                 Key::Delete => {
                     if offset < buffer.len() {
                         buffer.remove(offset);
+                        offset -= 1;
                     }
                 },
                 Key::Left => {
@@ -136,6 +137,11 @@ impl<'shell> Session<'shell> {
                         }
                     }
                 },
+                Key::Ctrl('u') => {
+                    buffer.replace_range(..offset, "");
+                    offset = 0;
+                },
+                Key::Ctrl('k') => buffer.replace_range(offset.., ""),
                 _ => { /* do nothing */ }
             };
 
