@@ -53,6 +53,7 @@ impl<'shell> Session<'shell> {
         let mut buffer = String::new();
 
         let mut offset = 0usize;
+
         let mut history_offset = None;
         let mut buffer_bak = None;
 
@@ -80,14 +81,10 @@ impl<'shell> Session<'shell> {
                     }
 
                 },
-                Key::Backspace => {
-                    if offset != 0 && offset == buffer.len() {
-                        buffer.pop();
-                        offset -= 1;
-                    } else if offset != 0 {
-                        buffer.remove(offset);
-                    }
-                }
+                Key::Backspace => if offset > 0 {
+                    buffer.remove(offset - 1);
+                    offset -= 1;
+                },
                 Key::Delete => {
                     if offset < buffer.len() {
                         buffer.remove(offset);
