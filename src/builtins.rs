@@ -191,6 +191,7 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 ///   merge the base command with the given args if run as 'wrapped'
 ///   show either normal commands, wrapped commands, both (both normal and wrapped but only if the wrapped base commands match), or all
 /// todo: allow for manual command sync
+/// todo: allow filtering commands with regex
 pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("history")

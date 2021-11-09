@@ -6,11 +6,19 @@ mod history;
 
 use std::env;
 use std::io;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::process::Command;
 
-use crate::history::{History, HistoryEntry};
 use clap::Arg;
+
+use termion::clear::{AfterCursor, BeforeCursor};
+use termion::cursor::{Left, Restore, Right, Save};
+use termion::event::Key;
+use termion::input::TermRead;
+
+use termion::raw::IntoRawMode;
+
+use crate::history::{History, HistoryEntry};
 
 pub struct Session<'shell> {
     history: History,
@@ -35,10 +43,66 @@ impl<'shell> Session<'shell> {
     ///
     /// todo: turn of immediate echo to  we can handle things like up-arrow for last command and escape sequences
     pub fn take_input(&mut self) -> String {
-        let mut buffer = String::new();
+        let stdout = io::stdout();
+        let mut stdout = stdout.lock().into_raw_mode().unwrap();
 
-        if let Err(err) = io::stdin().read_line(&mut buffer) {
-            eprintln!("Error reading from stind: {}", err)
+        let stdin = io::stdin();
+        let mut stdin = stdin.lock();
+
+        let mut buffer = String::new();
+        let mut offset = 0usize;
+
+        let prompt = prompt();
+
+        write!(stdout, "{}{}", Save, prompt).unwrap();
+        stdout.flush().unwrap();
+
+        write!(stdout, "{}", Right(1));
+
+        for key in stdin.keys() {
+            match key.unwrap() {
+                Key::Char('\n') => {
+                    writeln!(stdout, "{}", Restore);
+                    stdout.flush();
+                    break
+                },
+                Key::Char(c) => {
+                    buffer.push(c);
+                    offset += 1;
+                },
+                Key::Backspace => {
+                    if offset != 0 && offset == buffer.len() {
+                        buffer.pop();
+                        offset -= 1;
+                    } else if offset != 0 {
+                        buffer.remove(offset);
+                    }
+                }
+                // Key::Left => {
+                //     write!(stdout, "{}", Left(1));
+                //
+                //     if offset != 0 {
+                //         offset -= 1;
+                //     }
+                // },
+                // Key::Right => {
+                //     write!(stdout, "{}", Right(1));
+                //
+                //     if offset < buffer.len() {
+                //         offset += 1;
+                //     }
+                // },
+                // Key::Up => {} // todo: up history
+                // Key::Down => {} // todo: down history
+                // Key::Delete => {} // todo: delete character
+                // Key::Alt(_) => {} // todo: handle keybindings
+                // Key::Ctrl(_) => {} // todo: handle keybindings
+                _ => { /* do nothing */ }
+            };
+
+            // todo: will have issues when deleting characters
+            write!(stdout, "{}{}{}{}", Restore, AfterCursor, prompt, buffer);
+            stdout.flush();
         }
 
         buffer
@@ -98,6 +162,7 @@ fn run(command: &str, args: &[String]) -> Result<i32, i32> {
 // todo: history
 // todo: up-arrow for last command(s)
 // todo: shell mode enum
+//   would remove the shell's dependency on the WRASH_MODE environment variable
 // todo: shell session?
 fn main() {
     let matches = app_from_crate!()
@@ -114,11 +179,10 @@ fn main() {
 
     let mut session = Session::new(history, base);
 
-    env::set_var("WRASH_BASE", base);
+    env::set_var("WRASH_BASE", base); // todo: not needed
     env::set_var("WRASH_MODE", "wrapped");
 
     loop {
-        print!("{}", prompt());
         let _ = io::stdout().flush();
 
         // todo: we will likely want to do the splitting ourselves or add post-processing to allow for globbing so that we can handle globs better
@@ -130,6 +194,10 @@ fn main() {
                 continue;
             }
         };
+
+        if argv.len() == 0 {
+            continue
+        }
 
         let _result = match argv[0].as_str() {
             "exit" => builtins::exit(&argv),
