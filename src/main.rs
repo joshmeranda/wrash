@@ -88,6 +88,11 @@ impl<'shell> Session<'shell> {
                         buffer.remove(offset);
                     }
                 }
+                Key::Delete => {
+                    if offset < buffer.len() {
+                        buffer.remove(offset);
+                    }
+                },
                 Key::Left => {
                     if offset != 0 {
                         offset -= 1;
@@ -130,7 +135,7 @@ impl<'shell> Session<'shell> {
                             buffer = entry.get_command();
                         }
                     }
-                }
+                },
                 _ => { /* do nothing */ }
             };
 
