@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use xdg::BaseDirectories;
+use crate::session::SessionMode;
 
 /// A single entry into history, providing the command run and some meta-data
 /// describing it.
@@ -11,14 +12,14 @@ use xdg::BaseDirectories;
 pub struct HistoryEntry {
     pub argv: String,
     pub base: Option<String>,
-    pub mode: String,
+    pub mode: SessionMode,
 }
 
 impl HistoryEntry {
     /// Construct a new [HistoryEntity] where [argv] contains the contents argv
     /// as a single String, [base] is the wrapped base command if there is one,
     /// and [mode] is the shell execution mode.
-    pub fn new(argv: String, base: Option<String>, mode: String) -> HistoryEntry {
+    pub fn new(argv: String, base: Option<String>, mode: SessionMode) -> HistoryEntry {
         HistoryEntry { argv, base, mode }
     }
 
@@ -38,7 +39,7 @@ pub struct History {
 
 /// Provides an abstraction around the shell's previously run commands.
 ///
-/// todo: return std::io::Result<HHistory> and add 'create_empty' or 'Default::default()'
+/// todo: return std::io::Result<History> and add 'create_empty' or 'Default::default()'
 /// todo: error on writing history?
 /// todo: error on reading history?
 /// todo: serialize history

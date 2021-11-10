@@ -1,6 +1,8 @@
 use std::cmp::Ordering;
+use std::fmt::{Display, Formatter};
 use std::io::Write;
-use std::{env, io};
+use std::io;
+use std::str::FromStr;
 use termion::clear::{AfterCursor, All};
 use termion::cursor::{Goto, Restore, Right, Save};
 use termion::event::Key;
@@ -10,19 +12,51 @@ use crate::history::{History, HistoryEntry, HistoryIterator};
 use crate::prompt;
 use termion::raw::IntoRawMode;
 
+/// Enum describing the current session execution mode.
+#[derive(Clone, Copy, PartialEq)]
+pub enum SessionMode {
+    Wrapped,
+    Normal,
+}
+
+impl FromStr for SessionMode {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "wrapped" => Ok(SessionMode::Wrapped),
+            "normal" => Ok(SessionMode::Normal),
+            _ => Err(())
+        }
+    }
+}
+
+impl Display for SessionMode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            SessionMode::Wrapped => "wrapped",
+            SessionMode::Normal => "normal",
+        };
+
+        write!(f, "{}", s)
+    }
+}
+
 pub struct Session<'shell> {
     history: History,
 
-    base: &'shell str,
+    pub base: &'shell str,
+
+    pub mode: SessionMode,
 }
 
 impl<'shell> Session<'shell> {
-    pub fn new(history: History, base: &'shell str) -> Session<'shell> {
-        Session { history, base }
+    pub fn new(history: History, base: &'shell str, mode: SessionMode) -> Session<'shell> {
+        Session { history, base, mode }
     }
 
-    pub fn get_mode(&self) -> Result<String, env::VarError> {
-        env::var("WRASH_MODE")
+    pub fn get_mode(&self) -> SessionMode {
+        self.mode
     }
 
     pub fn get_base(&self) -> String {
@@ -175,16 +209,12 @@ impl<'shell> Session<'shell> {
     ///
     /// todo: check if the given command is a builtin to avoid adding unneeded base command
     pub fn push_to_history(&mut self, command: &str) {
-        match self.get_mode() {
-            Ok(m) => {
-                let entry = HistoryEntry::new(command.trim().to_string(), if m == "wrapped" { Some(self.get_base()) } else { None }, m);
+        let entry = match self.mode {
+            SessionMode::Wrapped => HistoryEntry::new(command.trim().to_string(), Some(self.get_base()), self.mode),
+            SessionMode::Normal => HistoryEntry::new(command.trim().to_string(), None, self.mode),
+        };
 
-                self.history.push(entry);
-            },
-            Err(err) => eprintln!(
-                concat!("could not determine the current wrash execution mode: {}\n",
-                "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err)
-        }
+        self.history.push(entry);
     }
 
     pub fn history_iter(&self) -> HistoryIterator {
