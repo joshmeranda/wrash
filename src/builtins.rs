@@ -105,37 +105,20 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
 }
 
 /// Print the status of the current node.
-pub fn mode(argv: &[String]) -> BuiltinResult {
+pub fn mode(session: &Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("mode")
         .about("get the current wrash execution mode");
 
     let _matches = handle_matches!(app, argv);
 
-    let mode = match env::var("WRASH_MODE") {
-        Ok(mode) => mode,
-        Err(err) => {
-            eprintln!(
-                "Error: couldn't find or understand value for 'WRASH_MODE': {}",
-                err
-            );
-            return Err(1);
-        }
-    };
-
-    if matches!(mode.as_str(), "wrapped" | "normals") {
-        eprintln!("invalid value for 'WRASH_MODE'");
-
-        return Err(2);
-    }
-
-    println!("{}", mode);
+    println!("{}", session.mode);
 
     Ok(0)
 }
 
 /// Set the current shell mode.
-pub fn setmode(argv: &[String]) -> BuiltinResult {
+pub fn setmode(session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("mode")
         .about("set the wrash execution mode")
@@ -148,9 +131,7 @@ pub fn setmode(argv: &[String]) -> BuiltinResult {
 
     let matches = handle_matches!(app, argv);
 
-    let mode = matches.value_of("mode").unwrap();
-
-    env::set_var("WRASH_MODE", mode);
+    session.mode = matches.value_of("mode").unwrap().parse().unwrap();
 
     Ok(0)
 }
@@ -190,7 +171,6 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 /// todo: show / search commands (allow specifying offset or number)
 ///   merge the base command with the given args if run as 'wrapped'
 ///   show either normal commands, wrapped commands, both (both normal and wrapped but only if the wrapped base commands match), or all
-/// todo: allow for manual command sync
 /// todo: allow filtering commands with regex
 pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
@@ -217,26 +197,14 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
             let filter_base = sub_matches.is_present("filter-base");
             let filter_mode = sub_matches.is_present("filter-mode");
 
-            let current_base = session.get_base();
-            let current_mode = match session.get_mode() {
-                Ok(m) => m,
-                Err(err) => {
-                    eprintln!(
-                        concat!("could not determine the current wrash execution mode: {}\n",
-                        "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err);
-
-                    return Err(-1);
-                }
-            };
-
             let entries = session.history_iter().filter(|entry| {
-                if filter_mode && entry.mode != current_mode {
+                if filter_mode && entry.mode != session.mode {
                     return false;
                 }
 
                 if entry.base.is_some()
                     && filter_base
-                    && entry.base.as_ref().unwrap().as_str() != current_base.as_str()
+                    && entry.base.as_ref().unwrap().as_str() != session.base
                 {
                     return false;
                 }

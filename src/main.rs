@@ -12,7 +12,7 @@ use std::process::Command;
 use clap::Arg;
 
 use crate::history::History;
-use crate::session::Session;
+use crate::session::{Session, SessionMode};
 
 /// Generate the command prompt
 ///
@@ -48,11 +48,6 @@ fn run(command: &str, args: &[String]) -> Result<i32, i32> {
     }
 }
 
-// todo: history
-// todo: up-arrow for last command(s)
-// todo: shell mode enum
-//   would remove the shell's dependency on the WRASH_MODE environment variable
-// todo: shell session?
 fn main() {
     let matches = app_from_crate!()
         .arg(
@@ -66,10 +61,7 @@ fn main() {
     let history = History::new();
     let base = matches.value_of("cmd").unwrap();
 
-    let mut session = Session::new(history, base);
-
-    env::set_var("WRASH_BASE", base); // todo: not needed
-    env::set_var("WRASH_MODE", "wrapped");
+    let mut session = Session::new(history, base, SessionMode::Wrapped);
 
     loop {
         let _ = io::stdout().flush();
@@ -98,23 +90,13 @@ fn main() {
         let _result = match argv[0].as_str() {
             "exit" => builtins::exit(&argv),
             "cd" => builtins::cd(&argv),
-            "mode" => builtins::mode(&argv),
-            "setmode" => builtins::setmode(&argv),
+            "mode" => builtins::mode(&session, &argv),
+            "setmode" => builtins::setmode(&mut session, &argv),
             "help" => builtins::help(&argv),
             "history" => builtins::history(&mut session, &argv),
             _ => match session.get_mode() {
-                Ok(m) => match m.as_str() {
-                    "wrapped" => run(base, argv.as_slice()),
-                    "normal" => run(argv[0].as_str(), &argv[1..]),
-                    _ => unreachable!(),
-                },
-                Err(err) => {
-                    eprintln!(
-                        concat!("could not determine the current wrash execution mode: {}\n",
-                        "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err);
-
-                    Err(-1)
-                }
+                SessionMode::Wrapped => run(base, argv.as_slice()),
+                SessionMode::Normal => run(argv[0].as_str(), &argv[1..]),
             },
         };
 
