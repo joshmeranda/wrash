@@ -209,7 +209,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
 
     match matches.subcommand() {
         ("sync", Some(_)) => {
-            if let Err(err) = session.history.sync() {
+            if let Err(err) = session.history_sync() {
                 eprintln!("Error saving to history file: {}", err)
             }
         }
@@ -225,16 +225,19 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                         concat!("could not determine the current wrash execution mode: {}\n",
                         "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err);
 
-                    return Err(-1)
+                    return Err(-1);
                 }
             };
 
-            let entries = session.history.iter().filter(|entry| {
+            let entries = session.history_iter().filter(|entry| {
                 if filter_mode && entry.mode != current_mode {
                     return false;
                 }
 
-                if entry.base.is_some() && filter_base && entry.base.as_ref().unwrap().as_str() != current_base.as_str() {
+                if entry.base.is_some()
+                    && filter_base
+                    && entry.base.as_ref().unwrap().as_str() != current_base.as_str()
+                {
                     return false;
                 }
 
@@ -245,9 +248,10 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                 println!("{}: {}", i, entry.get_command());
             }
         }
-        _ => {
-            // todo: filter mode by default?
-            for (i, entry) in session.history.iter().enumerate() {
+        _ =>
+        // todo: filter mode by default?
+        {
+            for (i, entry) in session.history_iter().enumerate() {
                 println!("{}: {}", i, entry.get_command());
             }
         }
