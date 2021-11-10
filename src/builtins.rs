@@ -191,6 +191,7 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 ///   merge the base command with the given args if run as 'wrapped'
 ///   show either normal commands, wrapped commands, both (both normal and wrapped but only if the wrapped base commands match), or all
 /// todo: allow for manual command sync
+/// todo: allow filtering commands with regex
 pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("history")
@@ -208,7 +209,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
 
     match matches.subcommand() {
         ("sync", Some(_)) => {
-            if let Err(err) = session.history.sync() {
+            if let Err(err) = session.history_sync() {
                 eprintln!("Error saving to history file: {}", err)
             }
         }
@@ -224,20 +225,19 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                         concat!("could not determine the current wrash execution mode: {}\n",
                         "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err);
 
-                    return Err(-1)
+                    return Err(-1);
                 }
             };
 
-            println!("=== 000 {} : {} ### {} : {} ===", filter_base, current_base, filter_mode, current_mode);
-
-            let entries = session.history.iter().filter(|entry| {
+            let entries = session.history_iter().filter(|entry| {
                 if filter_mode && entry.mode != current_mode {
-                    println!("=== 001 ===");
                     return false;
                 }
 
-                if entry.base.is_some() && filter_base && entry.base.as_ref().unwrap().as_str() != current_base.as_str() {
-                    println!("=== 002 ===");
+                if entry.base.is_some()
+                    && filter_base
+                    && entry.base.as_ref().unwrap().as_str() != current_base.as_str()
+                {
                     return false;
                 }
 
@@ -245,20 +245,14 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
             });
 
             for (i, entry) in entries.enumerate() {
-                if let Some(base) = &entry.base {
-                    println!("{}: {} {}", i, base, entry.argv);
-                } else {
-                    println!("{}: {}", i, entry.argv);
-                }
+                println!("{}: {}", i, entry.get_command());
             }
         }
-        _ => {
-            for (i, entry) in session.history.iter().enumerate() {
-                if let Some(base) = &entry.base {
-                    println!("{}: {} {}", i, base, entry.argv);
-                } else {
-                    println!("{}: {}", i, entry.argv);
-                }
+        _ =>
+        // todo: filter mode by default?
+        {
+            for (i, entry) in session.history_iter().enumerate() {
+                println!("{}: {}", i, entry.get_command());
             }
         }
     }

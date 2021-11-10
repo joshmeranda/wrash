@@ -3,63 +3,16 @@ extern crate clap;
 
 mod builtins;
 mod history;
+mod session;
 
 use std::env;
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 use std::process::Command;
 
-use crate::history::{History, HistoryEntry};
 use clap::Arg;
 
-pub struct Session<'shell> {
-    history: History,
-
-    base: &'shell str,
-}
-
-impl<'shell> Session<'shell> {
-    pub fn new(history: History, base: &'shell str) -> Session<'shell> {
-        Session { history, base }
-    }
-
-    pub fn get_mode(&self) -> Result<String, env::VarError> {
-        env::var("WRASH_MODE")
-    }
-
-    pub fn get_base(&self) -> String {
-        self.base.to_string()
-    }
-
-    /// Take user input.
-    ///
-    /// todo: turn of immediate echo to  we can handle things like up-arrow for last command and escape sequences
-    pub fn take_input(&mut self) -> String {
-        let mut buffer = String::new();
-
-        if let Err(err) = io::stdin().read_line(&mut buffer) {
-            eprintln!("Error reading from stind: {}", err)
-        }
-
-        buffer
-    }
-
-    /// Push the given command to the back of the in-memory history stack.
-    ///
-    /// todo: check if the given command is a builtin to avoid adding unneeded base command
-    pub fn push_to_history(&mut self, command: &str) {
-        match self.get_mode() {
-            Ok(m) => {
-                let entry = HistoryEntry::new(command.trim().to_string(), if m == "wrapped" { Some(self.get_base()) } else { None }, m);
-
-                self.history.push(entry);
-            },
-            Err(err) => eprintln!(
-                concat!("could not determine the current wrash execution mode: {}\n",
-                "Please verify that 'WRASH_MODE' is set to one of the valid options using 'setmode'"), err)
-        }
-    }
-}
+use crate::history::History;
+use crate::session::Session;
 
 /// Generate the command prompt
 ///
@@ -98,6 +51,7 @@ fn run(command: &str, args: &[String]) -> Result<i32, i32> {
 // todo: history
 // todo: up-arrow for last command(s)
 // todo: shell mode enum
+//   would remove the shell's dependency on the WRASH_MODE environment variable
 // todo: shell session?
 fn main() {
     let matches = app_from_crate!()
@@ -114,15 +68,21 @@ fn main() {
 
     let mut session = Session::new(history, base);
 
-    env::set_var("WRASH_BASE", base);
+    env::set_var("WRASH_BASE", base); // todo: not needed
     env::set_var("WRASH_MODE", "wrapped");
 
     loop {
-        print!("{}", prompt());
         let _ = io::stdout().flush();
 
         // todo: we will likely want to do the splitting ourselves or add post-processing to allow for globbing so that we can handle globs better
-        let cmd = session.take_input();
+        let cmd = match session.take_input() {
+            Ok(c) => c,
+            Err(err) => {
+                eprintln!("Error: could not take input: {}", err);
+                continue;
+            }
+        };
+
         let argv = match shlex::split(cmd.as_str()) {
             Some(args) => args,
             None => {
@@ -130,6 +90,10 @@ fn main() {
                 continue;
             }
         };
+
+        if argv.is_empty() {
+            continue;
+        }
 
         let _result = match argv[0].as_str() {
             "exit" => builtins::exit(&argv),
