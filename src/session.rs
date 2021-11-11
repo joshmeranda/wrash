@@ -3,17 +3,20 @@ use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::io;
 use std::str::FromStr;
+
 use termion::clear::{AfterCursor, All};
 use termion::cursor::{Goto, Restore, Right, Save};
 use termion::event::Key;
 use termion::input::TermRead;
+use termion::raw::IntoRawMode;
+
+use serde::{Serialize, Deserialize};
 
 use crate::history::{History, HistoryEntry, HistoryIterator};
 use crate::prompt;
-use termion::raw::IntoRawMode;
 
 /// Enum describing the current session execution mode.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub enum SessionMode {
     Wrapped,
     Normal,

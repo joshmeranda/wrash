@@ -7,8 +7,6 @@ use directories::UserDirs;
 
 type BuiltinResult = Result<i32, i32>;
 
-// todo: how to handle clashes between shell builtins and base command sub-0commands?
-//   add back the 'fall' builtin? 'exec'? 'builtin' ?
 /// handle_matches is designed to allow for clean and uniform argument handling.
 macro_rules! handle_matches {
     ($app:ident, $argv:ident) => {
@@ -32,7 +30,7 @@ macro_rules! handle_matches {
 
 /// Exit is a builtin for exiting out of the current shell session.
 ///
-/// todo: change exit to tell teh shll to exit rather than ending the process right away
+/// todo: change exit to tell the shell to exit rather than ending the process right away
 pub fn exit(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("exit")

@@ -1,14 +1,20 @@
+use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::io::Write;
+
+use serde::{Serialize, Deserialize};
+
+use serde_yaml;
 
 use xdg::BaseDirectories;
+
 use crate::session::SessionMode;
 
 /// A single entry into history, providing the command run and some meta-data
 /// describing it.
 ///
-/// todo: add mode
-/// todo: add base command
 /// todo: serialize entry
+#[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct HistoryEntry {
     pub argv: String,
     pub base: Option<String>,
@@ -34,7 +40,7 @@ impl HistoryEntry {
 pub struct History {
     history: Vec<HistoryEntry>,
 
-    file: PathBuf,
+    path: PathBuf,
 }
 
 /// Provides an abstraction around the shell's previously run commands.
@@ -44,40 +50,36 @@ pub struct History {
 /// todo: error on reading history?
 /// todo: serialize history
 impl History {
-    fn find_history_file() -> std::io::Result<PathBuf> {
-        let directories = BaseDirectories::new()?;
-
-        let history_file = directories.place_data_file(Path::new("wrash").join("history"))?;
-
-        Ok(history_file)
+    fn find_history_file() -> Option<PathBuf> {
+        match BaseDirectories::new() {
+            Ok(directories) => Some(directories.get_data_file(Path::new("wrash").join("history.yaml"))),
+            Err(_) => None,
+        }
     }
 
     /// Creates a new History value using $XDG_DATA_HOME/wrash/history as the
     /// history file. If the file cold not be found or read, the history is
     /// created empty.
-    pub fn new() -> History {
-        let history_file = Self::find_history_file();
-        let history = match history_file {
-            Ok(_) => {
-                vec![]
-            }
-            Err(_) => vec![],
+    pub fn new() -> Result<History, String> {
+        let path = match Self::find_history_file() {
+            Some(path) => path,
+            None => return Err("could not determine a home directory for the current user".to_string())
         };
 
         // sample history entries for manual testing
-        // let history = vec![
-        //     HistoryEntry::new("status".to_string(), Some("git".to_string()), "wrapped".to_string()),
-        //     HistoryEntry::new("status docker".to_string(), Some("systemctl".to_string()), "wrapped".to_string()),
-        //     HistoryEntry::new("add -A".to_string(), Some("git".to_string()), "wrapped".to_string()),
-        //     HistoryEntry::new("commit --message 'some sample commit message'".to_string(), Some("git".to_string()), "wrapped".to_string()),
-        //     HistoryEntry::new("ls -l --color auto --group-directories-first".to_string(), None, "normal".to_string()),
-        //     HistoryEntry::new("whoami".to_string(), None, "normal".to_string()),
-        // ];
+        let history = vec![
+            HistoryEntry::new("status".to_string(), Some("git".to_string()), SessionMode::Wrapped),
+            HistoryEntry::new("status docker".to_string(), Some("systemctl".to_string()), SessionMode::Wrapped),
+            HistoryEntry::new("add -A".to_string(), Some("git".to_string()), SessionMode::Wrapped),
+            HistoryEntry::new("commit --message 'some sample commit message'".to_string(), Some("git".to_string()), SessionMode::Wrapped),
+            HistoryEntry::new("ls -l --color auto --group-directories-first".to_string(), None, SessionMode::Normal),
+            HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal),
+        ];
 
-        Self {
+        Ok(Self {
             history,
-            file: history_file.unwrap(),
-        }
+            path,
+        })
     }
 
     pub fn get(&self, index: usize) -> Option<&HistoryEntry> {
@@ -98,6 +100,11 @@ impl History {
 
     /// Sync the current in-memory history with the history file.
     pub fn sync(&self) -> Result<(), std::io::Error> {
+        let s = serde_yaml::to_string(self.history.as_slice()).expect("to-string should not have erred");
+        let mut history_file = File::create(self.path.as_path())?;
+
+        write!(history_file, "{}", s)?;
+
         Ok(())
     }
 

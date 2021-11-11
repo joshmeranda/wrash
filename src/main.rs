@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate clap;
 
+#[macro_use]
+extern crate serde_derive;
+
 mod builtins;
 mod history;
 mod session;
@@ -58,7 +61,14 @@ fn main() {
         )
         .get_matches();
 
-    let history = History::new();
+    let history = match History::new() {
+        Ok(history) => history,
+        Err(err) => {
+            eprintln!("Could not establish proper history: {}", err);
+            return;
+        }
+    };
+
     let base = matches.value_of("cmd").unwrap();
 
     let mut session = Session::new(history, base, SessionMode::Wrapped);
