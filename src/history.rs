@@ -1,8 +1,6 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::io::Write;
-
-use serde::{Serialize, Deserialize};
 
 use serde_yaml;
 
@@ -12,8 +10,6 @@ use crate::session::SessionMode;
 
 /// A single entry into history, providing the command run and some meta-data
 /// describing it.
-///
-/// todo: serialize entry
 #[derive(Debug, Deserialize, PartialEq, Serialize)]
 pub struct HistoryEntry {
     pub argv: String,
@@ -44,11 +40,6 @@ pub struct History {
 }
 
 /// Provides an abstraction around the shell's previously run commands.
-///
-/// todo: return std::io::Result<History> and add 'create_empty' or 'Default::default()'
-/// todo: error on writing history?
-/// todo: error on reading history?
-/// todo: serialize history
 impl History {
     fn find_history_file() -> Option<PathBuf> {
         match BaseDirectories::new() {
@@ -66,15 +57,29 @@ impl History {
             None => return Err("could not determine a home directory for the current user".to_string())
         };
 
+        let history: Vec<HistoryEntry> = if path.exists() {
+            let s = match fs::read_to_string(path.as_path()) {
+                Ok(s) => s,
+                Err(err) => {
+                    eprintln!("Error: could not read file: {}", err);
+                    return Err(format!("could not read file: {}", err))
+                }
+            };
+
+            serde_yaml::from_str(s.as_str()).unwrap()
+        } else {
+            vec![]
+        };
+
         // sample history entries for manual testing
-        let history = vec![
-            HistoryEntry::new("status".to_string(), Some("git".to_string()), SessionMode::Wrapped),
-            HistoryEntry::new("status docker".to_string(), Some("systemctl".to_string()), SessionMode::Wrapped),
-            HistoryEntry::new("add -A".to_string(), Some("git".to_string()), SessionMode::Wrapped),
-            HistoryEntry::new("commit --message 'some sample commit message'".to_string(), Some("git".to_string()), SessionMode::Wrapped),
-            HistoryEntry::new("ls -l --color auto --group-directories-first".to_string(), None, SessionMode::Normal),
-            HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal),
-        ];
+        // let history = vec![
+        //     HistoryEntry::new("status".to_string(), Some("git".to_string()), SessionMode::Wrapped),
+        //     HistoryEntry::new("status docker".to_string(), Some("systemctl".to_string()), SessionMode::Wrapped),
+        //     HistoryEntry::new("add -A".to_string(), Some("git".to_string()), SessionMode::Wrapped),
+        //     HistoryEntry::new("commit --message 'some sample commit message'".to_string(), Some("git".to_string()), SessionMode::Wrapped),
+        //     HistoryEntry::new("ls -l --color auto --group-directories-first".to_string(), None, SessionMode::Normal),
+        //     HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal),
+        // ];
 
         Ok(Self {
             history,

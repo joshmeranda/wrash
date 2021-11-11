@@ -10,8 +10,6 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
-use serde::{Serialize, Deserialize};
-
 use crate::history::{History, HistoryEntry, HistoryIterator};
 use crate::prompt;
 
