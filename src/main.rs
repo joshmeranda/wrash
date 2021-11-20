@@ -110,7 +110,7 @@ fn main() {
             },
         };
 
-        session.push_to_history(cmd.as_str());
+        session.push_to_history(cmd.as_str(), builtins::is_builtin(argv[0].as_str()));
     }
 
     // todo: consider writing to temporary file to be merged into the master history later on error

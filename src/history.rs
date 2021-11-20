@@ -15,14 +15,25 @@ pub struct HistoryEntry {
     pub argv: String,
     pub base: Option<String>,
     pub mode: SessionMode,
+    pub is_builtin: bool,
 }
 
 impl HistoryEntry {
     /// Construct a new [HistoryEntity] where [argv] contains the contents argv
     /// as a single String, [base] is the wrapped base command if there is one,
     /// and [mode] is the shell execution mode.
-    pub fn new(argv: String, base: Option<String>, mode: SessionMode) -> HistoryEntry {
-        HistoryEntry { argv, base, mode }
+    pub fn new(
+        argv: String,
+        base: Option<String>,
+        mode: SessionMode,
+        is_builtin: bool,
+    ) -> HistoryEntry {
+        HistoryEntry {
+            argv,
+            base,
+            mode,
+            is_builtin,
+        }
     }
 
     pub fn get_command(&self) -> String {
@@ -70,6 +81,7 @@ impl History {
                 }
             };
 
+            // todo: handle deserialization errors
             serde_yaml::from_str(s.as_str()).unwrap()
         } else {
             vec![]
@@ -77,32 +89,26 @@ impl History {
 
         // sample history entries for manual testing
         let history = vec![
-            HistoryEntry::new(
-                "status".to_string(),
-                Some("git".to_string()),
-                SessionMode::Wrapped,
-            ),
+            HistoryEntry::new("history".to_string(), None, SessionMode::Normal, true),
             HistoryEntry::new(
                 "status docker".to_string(),
                 Some("systemctl".to_string()),
                 SessionMode::Wrapped,
-            ),
-            HistoryEntry::new(
-                "add -A".to_string(),
-                Some("git".to_string()),
-                SessionMode::Wrapped,
+                false,
             ),
             HistoryEntry::new(
                 "commit --message 'some sample commit message'".to_string(),
                 Some("git".to_string()),
                 SessionMode::Wrapped,
+                false,
             ),
             HistoryEntry::new(
                 "ls -l --color auto --group-directories-first".to_string(),
                 None,
                 SessionMode::Normal,
+                false,
             ),
-            HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal),
+            HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal, false),
         ];
 
         Ok(Self { history, path })

@@ -225,7 +225,12 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
         _ => {
             for (i, entry) in session
                 .history_iter()
-                .filter(|entry| entry.mode == session.mode && (entry.base.is_none() || entry.base == Some(session.base.to_string())))
+                .filter(|entry| {
+                    entry.is_builtin
+                        || (entry.mode == session.mode
+                            && (entry.base.is_none()
+                                || entry.base.as_ref().unwrap() == session.base))
+                })
                 .enumerate()
             {
                 println!("{}: {}", i, entry.get_command());

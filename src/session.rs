@@ -87,7 +87,11 @@ impl<'shell> Session<'shell> {
         let history_entries: Vec<&HistoryEntry> = self
             .history
             .iter()
-            .filter(|entry| entry.mode == self.mode && (entry.base.is_none() || entry.base == Some(self.base.to_string())))
+            .filter(|entry| {
+                entry.is_builtin
+                    || (entry.mode == self.mode
+                        && (entry.base.is_none() || entry.base.as_ref().unwrap() == self.base))
+            })
             .rev()
             .collect();
         let mut history_offset = None;
@@ -226,12 +230,17 @@ impl<'shell> Session<'shell> {
     /// command and SessionMode::Normal.
     ///
     /// todo: check if the given command is a builtin to avoid adding unneeded base command
-    pub fn push_to_history(&mut self, command: &str) {
+    pub fn push_to_history(&mut self, command: &str, is_builtin: bool) {
         let entry = match self.mode {
-            SessionMode::Wrapped => {
-                HistoryEntry::new(command.trim().to_string(), Some(self.get_base()), self.mode)
+            SessionMode::Wrapped => HistoryEntry::new(
+                command.trim().to_string(),
+                Some(self.get_base()),
+                self.mode,
+                is_builtin,
+            ),
+            SessionMode::Normal => {
+                HistoryEntry::new(command.trim().to_string(), None, self.mode, false)
             }
-            SessionMode::Normal => HistoryEntry::new(command.trim().to_string(), None, self.mode),
         };
 
         self.history.push(entry);
