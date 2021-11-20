@@ -154,6 +154,7 @@ impl<'shell> Session<'shell> {
 
                     if let Some(entry) = history_entries.get(history_offset.unwrap()) {
                         buffer = entry.get_command();
+                        offset = buffer.len();
                     }
                 }
                 Key::Down => {
@@ -175,6 +176,8 @@ impl<'shell> Session<'shell> {
                             buffer = entry.get_command();
                         }
                     }
+
+                    offset = buffer.len();
                 }
 
                 // content deletion
