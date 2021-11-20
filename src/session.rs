@@ -83,7 +83,6 @@ impl<'shell> Session<'shell> {
 
         let mut offset = 0usize;
 
-        // todo: might not be a good idea to keep this stored in memory
         let history_entries: Vec<&HistoryEntry> = self
             .history
             .iter()
@@ -143,7 +142,7 @@ impl<'shell> Session<'shell> {
                 Key::Up => {
                     match history_offset {
                         Some(n) => {
-                            if n < history_entries.len() {
+                            if n < history_entries.len() - 1 {
                                 history_offset = Some(n + 1);
                             }
                         }

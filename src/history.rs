@@ -88,28 +88,28 @@ impl History {
         };
 
         // sample history entries for manual testing
-        let history = vec![
-            HistoryEntry::new("history".to_string(), None, SessionMode::Normal, true),
-            HistoryEntry::new(
-                "status docker".to_string(),
-                Some("systemctl".to_string()),
-                SessionMode::Wrapped,
-                false,
-            ),
-            HistoryEntry::new(
-                "commit --message 'some sample commit message'".to_string(),
-                Some("git".to_string()),
-                SessionMode::Wrapped,
-                false,
-            ),
-            HistoryEntry::new(
-                "ls -l --color auto --group-directories-first".to_string(),
-                None,
-                SessionMode::Normal,
-                false,
-            ),
-            HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal, false),
-        ];
+        // let history = vec![
+            // HistoryEntry::new("history".to_string(), None, SessionMode::Normal, true),
+            // HistoryEntry::new(
+            //     "status docker".to_string(),
+            //     Some("systemctl".to_string()),
+            //     SessionMode::Wrapped,
+            //     false,
+            // ),
+            // HistoryEntry::new(
+            //     "commit --message 'some sample commit message'".to_string(),
+            //     Some("git".to_string()),
+            //     SessionMode::Wrapped,
+            //     false,
+            // ),
+            // HistoryEntry::new(
+            //     "ls -l --color auto --group-directories-first".to_string(),
+            //     None,
+            //     SessionMode::Normal,
+            //     false,
+            // ),
+            // HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal, false),
+        // ];
 
         Ok(Self { history, path })
     }
