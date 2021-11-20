@@ -138,7 +138,6 @@ impl<'shell> Session<'shell> {
                     }
                 }
 
-                // todo: filter to only include history entries from the current mode
                 Key::Up => {
                     match history_offset {
                         Some(n) => {
