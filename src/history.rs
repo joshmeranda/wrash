@@ -81,35 +81,13 @@ impl History {
                 }
             };
 
-            // todo: handle deserialization errors
-            serde_yaml::from_str(s.as_str()).unwrap()
+            match serde_yaml::from_str(s.as_str()) {
+                Ok(history) => history,
+                Err(err) => return Err(err.to_string())
+            }
         } else {
             vec![]
         };
-
-        // sample history entries for manual testing
-        // let history = vec![
-            // HistoryEntry::new("history".to_string(), None, SessionMode::Normal, true),
-            // HistoryEntry::new(
-            //     "status docker".to_string(),
-            //     Some("systemctl".to_string()),
-            //     SessionMode::Wrapped,
-            //     false,
-            // ),
-            // HistoryEntry::new(
-            //     "commit --message 'some sample commit message'".to_string(),
-            //     Some("git".to_string()),
-            //     SessionMode::Wrapped,
-            //     false,
-            // ),
-            // HistoryEntry::new(
-            //     "ls -l --color auto --group-directories-first".to_string(),
-            //     None,
-            //     SessionMode::Normal,
-            //     false,
-            // ),
-            // HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal, false),
-        // ];
 
         Ok(Self { history, path })
     }

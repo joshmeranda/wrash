@@ -138,11 +138,10 @@ impl<'shell> Session<'shell> {
                     }
                 }
 
-                // todo: filter to only include history entries from the current mode
                 Key::Up => {
                     match history_offset {
                         Some(n) => {
-                            if n < history_entries.len() - 1 {
+                            if n + 1 < history_entries.len() {
                                 history_offset = Some(n + 1);
                             }
                         }
@@ -154,6 +153,7 @@ impl<'shell> Session<'shell> {
 
                     if let Some(entry) = history_entries.get(history_offset.unwrap()) {
                         buffer = entry.get_command();
+                        offset = buffer.len();
                     }
                 }
                 Key::Down => {
@@ -175,6 +175,8 @@ impl<'shell> Session<'shell> {
                             buffer = entry.get_command();
                         }
                     }
+
+                    offset = buffer.len();
                 }
 
                 // content deletion
@@ -203,7 +205,6 @@ impl<'shell> Session<'shell> {
                 _ => { /* do nothing */ }
             };
 
-            // todo: will have issues when deleting characters
             write!(
                 stdout,
                 "{}{}{}{}{}{}",
@@ -227,18 +228,20 @@ impl<'shell> Session<'shell> {
     ///
     /// If the given command is a builtin, it will be added as having no bas
     /// command and SessionMode::Normal.
-    ///
-    /// todo: check if the given command is a builtin to avoid adding unneeded base command
     pub fn push_to_history(&mut self, command: &str, is_builtin: bool) {
-        let entry = match self.mode {
-            SessionMode::Wrapped => HistoryEntry::new(
-                command.trim().to_string(),
-                Some(self.get_base()),
-                self.mode,
-                is_builtin,
-            ),
-            SessionMode::Normal => {
-                HistoryEntry::new(command.trim().to_string(), None, self.mode, false)
+        let entry = if is_builtin {
+            HistoryEntry::new(command.trim().to_string(), None, self.mode, true)
+        } else {
+            match self.mode {
+                SessionMode::Wrapped => HistoryEntry::new(
+                    command.trim().to_string(),
+                    Some(self.get_base()),
+                    self.mode,
+                    is_builtin,
+                ),
+                SessionMode::Normal => {
+                    HistoryEntry::new(command.trim().to_string(), None, self.mode, false)
+                }
             }
         };
 
