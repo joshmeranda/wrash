@@ -28,6 +28,14 @@ macro_rules! handle_matches {
     };
 }
 
+/// Check if a command is a builtin or not.
+pub fn is_builtin(command: &str) -> bool {
+    matches!(
+        command,
+        "exit" | "cd" | "mode" | "setmode" | "help" | "history"
+    )
+}
+
 /// Exit is a builtin for exiting out of the current shell session.
 ///
 /// todo: change exit to tell the shell to exit rather than ending the process right away
@@ -171,7 +179,9 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("history")
+        .max_term_width(80)
         .about("examine and manipulate the command history")
+        .after_help("if no subcommand is specified, then only commands run with the same mode and base command  along with builtins are shown")
         .subcommand(
             SubCommand::with_name("sync")
                 .about("flush the current in-memory history into the history file"),
@@ -212,10 +222,17 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                 println!("{}: {}", i, entry.get_command());
             }
         }
-        _ =>
-        // todo: filter mode by default?
-        {
-            for (i, entry) in session.history_iter().enumerate() {
+        _ => {
+            for (i, entry) in session
+                .history_iter()
+                .filter(|entry| {
+                    entry.is_builtin
+                        || (entry.mode == session.mode
+                            && (entry.base.is_none()
+                                || entry.base.as_ref().unwrap() == session.base))
+                })
+                .enumerate()
+            {
                 println!("{}: {}", i, entry.get_command());
             }
         }

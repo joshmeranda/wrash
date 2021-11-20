@@ -1,6 +1,6 @@
 use std::fs::{self, File};
-use std::path::{Path, PathBuf};
 use std::io::Write;
+use std::path::{Path, PathBuf};
 
 use serde_yaml;
 
@@ -15,14 +15,25 @@ pub struct HistoryEntry {
     pub argv: String,
     pub base: Option<String>,
     pub mode: SessionMode,
+    pub is_builtin: bool,
 }
 
 impl HistoryEntry {
     /// Construct a new [HistoryEntity] where [argv] contains the contents argv
     /// as a single String, [base] is the wrapped base command if there is one,
     /// and [mode] is the shell execution mode.
-    pub fn new(argv: String, base: Option<String>, mode: SessionMode) -> HistoryEntry {
-        HistoryEntry { argv, base, mode }
+    pub fn new(
+        argv: String,
+        base: Option<String>,
+        mode: SessionMode,
+        is_builtin: bool,
+    ) -> HistoryEntry {
+        HistoryEntry {
+            argv,
+            base,
+            mode,
+            is_builtin,
+        }
     }
 
     pub fn get_command(&self) -> String {
@@ -43,7 +54,9 @@ pub struct History {
 impl History {
     fn find_history_file() -> Option<PathBuf> {
         match BaseDirectories::new() {
-            Ok(directories) => Some(directories.get_data_file(Path::new("wrash").join("history.yaml"))),
+            Ok(directories) => {
+                Some(directories.get_data_file(Path::new("wrash").join("history.yaml")))
+            }
             Err(_) => None,
         }
     }
@@ -54,7 +67,9 @@ impl History {
     pub fn new() -> Result<History, String> {
         let path = match Self::find_history_file() {
             Some(path) => path,
-            None => return Err("could not determine a home directory for the current user".to_string())
+            None => {
+                return Err("could not determine a home directory for the current user".to_string())
+            }
         };
 
         let history: Vec<HistoryEntry> = if path.exists() {
@@ -62,10 +77,11 @@ impl History {
                 Ok(s) => s,
                 Err(err) => {
                     eprintln!("Error: could not read file: {}", err);
-                    return Err(format!("could not read file: {}", err))
+                    return Err(format!("could not read file: {}", err));
                 }
             };
 
+            // todo: handle deserialization errors
             serde_yaml::from_str(s.as_str()).unwrap()
         } else {
             vec![]
@@ -73,30 +89,29 @@ impl History {
 
         // sample history entries for manual testing
         // let history = vec![
-        //     HistoryEntry::new("status".to_string(), Some("git".to_string()), SessionMode::Wrapped),
-        //     HistoryEntry::new("status docker".to_string(), Some("systemctl".to_string()), SessionMode::Wrapped),
-        //     HistoryEntry::new("add -A".to_string(), Some("git".to_string()), SessionMode::Wrapped),
-        //     HistoryEntry::new("commit --message 'some sample commit message'".to_string(), Some("git".to_string()), SessionMode::Wrapped),
-        //     HistoryEntry::new("ls -l --color auto --group-directories-first".to_string(), None, SessionMode::Normal),
-        //     HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal),
+            // HistoryEntry::new("history".to_string(), None, SessionMode::Normal, true),
+            // HistoryEntry::new(
+            //     "status docker".to_string(),
+            //     Some("systemctl".to_string()),
+            //     SessionMode::Wrapped,
+            //     false,
+            // ),
+            // HistoryEntry::new(
+            //     "commit --message 'some sample commit message'".to_string(),
+            //     Some("git".to_string()),
+            //     SessionMode::Wrapped,
+            //     false,
+            // ),
+            // HistoryEntry::new(
+            //     "ls -l --color auto --group-directories-first".to_string(),
+            //     None,
+            //     SessionMode::Normal,
+            //     false,
+            // ),
+            // HistoryEntry::new("whoami".to_string(), None, SessionMode::Normal, false),
         // ];
 
-        Ok(Self {
-            history,
-            path,
-        })
-    }
-
-    pub fn get(&self, index: usize) -> Option<&HistoryEntry> {
-        self.history.get(index)
-    }
-
-    pub fn get_from_end(&self, index: usize) -> Option<&HistoryEntry> {
-        if index >= self.len() {
-            None
-        } else {
-            self.history.get(self.len() - 1 - index)
-        }
+        Ok(Self { history, path })
     }
 
     pub fn push(&mut self, entry: HistoryEntry) {
@@ -105,7 +120,8 @@ impl History {
 
     /// Sync the current in-memory history with the history file.
     pub fn sync(&self) -> Result<(), std::io::Error> {
-        let s = serde_yaml::to_string(self.history.as_slice()).expect("to-string should not have erred");
+        let s = serde_yaml::to_string(self.history.as_slice())
+            .expect("to-string should not have erred");
         let mut history_file = File::create(self.path.as_path())?;
 
         write!(history_file, "{}", s)?;
@@ -125,6 +141,7 @@ impl History {
         HistoryIterator {
             entries: self.history.as_slice(),
             index: 0,
+            back_index: self.history.len(),
         }
     }
 }
@@ -133,6 +150,8 @@ pub struct HistoryIterator<'history> {
     entries: &'history [HistoryEntry],
 
     index: usize,
+
+    back_index: usize,
 }
 
 impl<'history> Iterator for HistoryIterator<'history> {
@@ -146,5 +165,17 @@ impl<'history> Iterator for HistoryIterator<'history> {
         }
 
         entry
+    }
+}
+
+impl<'history> DoubleEndedIterator for HistoryIterator<'history> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.back_index == 0 {
+            None
+        } else {
+            self.back_index -= 1;
+
+            self.entries.get(self.back_index)
+        }
     }
 }

@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
-use std::io::Write;
 use std::io;
+use std::io::Write;
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
@@ -10,7 +10,10 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
+use crate::builtins;
+
 use crate::history::{History, HistoryEntry, HistoryIterator};
+
 use crate::prompt;
 
 /// Enum describing the current session execution mode.
@@ -27,7 +30,7 @@ impl FromStr for SessionMode {
         match s {
             "wrapped" => Ok(SessionMode::Wrapped),
             "normal" => Ok(SessionMode::Normal),
-            _ => Err(())
+            _ => Err(()),
         }
     }
 }
@@ -53,7 +56,11 @@ pub struct Session<'shell> {
 
 impl<'shell> Session<'shell> {
     pub fn new(history: History, base: &'shell str, mode: SessionMode) -> Session<'shell> {
-        Session { history, base, mode }
+        Session {
+            history,
+            base,
+            mode,
+        }
     }
 
     pub fn get_mode(&self) -> SessionMode {
@@ -76,6 +83,16 @@ impl<'shell> Session<'shell> {
 
         let mut offset = 0usize;
 
+        let history_entries: Vec<&HistoryEntry> = self
+            .history
+            .iter()
+            .filter(|entry| {
+                entry.is_builtin
+                    || (entry.mode == self.mode
+                        && (entry.base.is_none() || entry.base.as_ref().unwrap() == self.base))
+            })
+            .rev()
+            .collect();
         let mut history_offset = None;
         let mut buffer_bak = None;
 
@@ -125,7 +142,7 @@ impl<'shell> Session<'shell> {
                 Key::Up => {
                     match history_offset {
                         Some(n) => {
-                            if n < self.history.len() {
+                            if n < history_entries.len() - 1 {
                                 history_offset = Some(n + 1);
                             }
                         }
@@ -135,7 +152,7 @@ impl<'shell> Session<'shell> {
                         }
                     };
 
-                    if let Some(entry) = self.history.get_from_end(history_offset.unwrap()) {
+                    if let Some(entry) = history_entries.get(history_offset.unwrap()) {
                         buffer = entry.get_command();
                     }
                 }
@@ -154,7 +171,7 @@ impl<'shell> Session<'shell> {
                     }
 
                     if let Some(history_offset) = history_offset {
-                        if let Some(entry) = self.history.get_from_end(history_offset) {
+                        if let Some(entry) = history_entries.get(history_offset) {
                             buffer = entry.get_command();
                         }
                     }
@@ -208,11 +225,21 @@ impl<'shell> Session<'shell> {
 
     /// Push the given command to the back of the in-memory history stack.
     ///
+    /// If the given command is a builtin, it will be added as having no bas
+    /// command and SessionMode::Normal.
+    ///
     /// todo: check if the given command is a builtin to avoid adding unneeded base command
-    pub fn push_to_history(&mut self, command: &str) {
+    pub fn push_to_history(&mut self, command: &str, is_builtin: bool) {
         let entry = match self.mode {
-            SessionMode::Wrapped => HistoryEntry::new(command.trim().to_string(), Some(self.get_base()), self.mode),
-            SessionMode::Normal => HistoryEntry::new(command.trim().to_string(), None, self.mode),
+            SessionMode::Wrapped => HistoryEntry::new(
+                command.trim().to_string(),
+                Some(self.get_base()),
+                self.mode,
+                is_builtin,
+            ),
+            SessionMode::Normal => {
+                HistoryEntry::new(command.trim().to_string(), None, self.mode, false)
+            }
         };
 
         self.history.push(entry);
