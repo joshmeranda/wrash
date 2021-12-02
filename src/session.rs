@@ -101,7 +101,7 @@ impl<'shell> Session<'shell> {
 
         write!(stdout, "{}", Right(1))?;
 
-        // todo: do not append the base command when in wrapped mode
+        // todo: implement some tab-completion (even if its just files)
         for key in stdin.keys() {
             match key.unwrap() {
                 Key::Char('\n') => break,
@@ -150,7 +150,12 @@ impl<'shell> Session<'shell> {
                     };
 
                     if let Some(entry) = history_entries.get(history_offset.unwrap()) {
-                        buffer = entry.get_command();
+                        if entry.mode == SessionMode::Wrapped && ! entry.is_builtin {
+                            buffer = entry.argv.clone();
+                        } else {
+                            buffer = entry.get_command();
+                        }
+
                         offset = buffer.len();
                     }
                 }
@@ -170,7 +175,11 @@ impl<'shell> Session<'shell> {
 
                     if let Some(history_offset) = history_offset {
                         if let Some(entry) = history_entries.get(history_offset) {
-                            buffer = entry.get_command();
+                            if entry.mode == SessionMode::Wrapped && ! entry.is_builtin {
+                                buffer = entry.argv.clone();
+                            } else {
+                                buffer = entry.get_command();
+                            }
                         }
                     }
 
