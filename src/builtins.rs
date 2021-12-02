@@ -5,7 +5,7 @@ use crate::Session;
 use clap::{Arg, ErrorKind, SubCommand};
 use directories::UserDirs;
 
-type BuiltinResult = Result<i32, i32>;
+type BuiltinResult = Result<(), i32>;
 
 /// handle_matches is designed to allow for clean and uniform argument handling.
 macro_rules! handle_matches {
@@ -15,7 +15,7 @@ macro_rules! handle_matches {
                 ErrorKind::HelpDisplayed => {
                     println!("{}", err);
 
-                    return Ok(0);
+                    return Ok(());
                 }
                 _ => {
                     eprintln!("Error: {}", err);
@@ -37,8 +37,6 @@ pub fn is_builtin(command: &str) -> bool {
 }
 
 /// Exit is a builtin for exiting out of the current shell session.
-///
-/// todo: change exit to tell the shell to exit rather than ending the process right away
 pub fn exit(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("exit")
@@ -66,7 +64,11 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
 
     let code: i32 = matches.value_of("code").unwrap().parse().unwrap();
 
-    std::process::exit(code as i32);
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(code)
+    }
 }
 
 /// CD is builtin for changing the current working directory in the shell.
@@ -107,7 +109,7 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
         eprintln!("Error changing directories: {}", err)
     }
 
-    Ok(0)
+    Ok(())
 }
 
 /// Print the status of the current node.
@@ -120,7 +122,7 @@ pub fn mode(session: &Session, argv: &[String]) -> BuiltinResult {
 
     println!("{}", session.mode);
 
-    Ok(0)
+    Ok(())
 }
 
 /// Set the current shell mode.
@@ -139,7 +141,7 @@ pub fn setmode(session: &mut Session, argv: &[String]) -> BuiltinResult {
 
     session.mode = matches.value_of("mode").unwrap().parse().unwrap();
 
-    Ok(0)
+    Ok(())
 }
 
 /// Show help text for using the shell.
@@ -169,7 +171,7 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
     help"
     );
 
-    Ok(0)
+    Ok(())
 }
 
 /// Examine and manipulate the command history, if the command was run in "wrapped" mode,
@@ -238,5 +240,5 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
         }
     }
 
-    Ok(0)
+    Ok(())
 }

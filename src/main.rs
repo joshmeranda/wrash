@@ -24,7 +24,7 @@ fn prompt() -> String {
     format!("[{}] $ ", env::var("USER").unwrap())
 }
 
-fn run(command: &str, args: &[String]) -> Result<i32, i32> {
+fn run(command: &str, args: &[String]) -> Result<(), i32> {
     let proc = Command::new(command).args(args).spawn();
 
     let code = match proc {
@@ -45,13 +45,13 @@ fn run(command: &str, args: &[String]) -> Result<i32, i32> {
     };
 
     if code == 0 {
-        Ok(code)
+        Ok(())
     } else {
         Err(code)
     }
 }
 
-fn main() {
+fn wrapped_main() -> Result<(), i32> {
     let matches = app_from_crate!()
         .arg(
             Arg::with_name("cmd")
@@ -65,7 +65,7 @@ fn main() {
         Ok(history) => history,
         Err(err) => {
             eprintln!("Could not establish proper history: {}", err);
-            return;
+            return Err(1); // todo: we probably want to ust continue with an in-memory history
         }
     };
 
@@ -73,7 +73,10 @@ fn main() {
 
     let mut session = Session::new(history, base, SessionMode::Wrapped);
 
-    loop {
+    let mut should_continue = true;
+    let mut result = Ok(());
+
+    while should_continue {
         let _ = io::stdout().flush();
 
         // todo: we will likely want to do the splitting ourselves or add post-processing to allow for globbing so that we can handle globs better
@@ -97,8 +100,11 @@ fn main() {
             continue;
         }
 
-        let _result = match argv[0].as_str() {
-            "exit" => builtins::exit(&argv),
+        result = match argv[0].as_str() {
+            "exit" => {
+                should_continue = false;
+                builtins::exit(&argv)
+            },
             "cd" => builtins::cd(&argv),
             "mode" => builtins::mode(&session, &argv),
             "setmode" => builtins::setmode(&mut session, &argv),
@@ -113,11 +119,11 @@ fn main() {
         session.push_to_history(cmd.as_str(), builtins::is_builtin(argv[0].as_str()));
     }
 
-    // todo: consider writing to temporary file to be merged into the master history later on error
-    // if let Err(err) = history.sync() {
-    //     eprintln!(
-    //         "Error: could not write sessions history to history file: {}",
-    //         err
-    //     );
-    // }
+    result
+}
+
+fn main() {
+    if let Err(n) = wrapped_main() {
+        std::process::exit(n);
+    }
 }

@@ -2,8 +2,6 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use serde_yaml;
-
 use xdg::BaseDirectories;
 
 use crate::session::SessionMode;
@@ -105,14 +103,6 @@ impl History {
         write!(history_file, "{}", s)?;
 
         Ok(())
-    }
-
-    pub fn len(&self) -> usize {
-        self.history.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.history.is_empty()
     }
 
     pub fn iter(&self) -> HistoryIterator {

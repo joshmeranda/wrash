@@ -10,8 +10,6 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
-use crate::builtins;
-
 use crate::history::{History, HistoryEntry, HistoryIterator};
 
 use crate::prompt;
@@ -109,11 +107,11 @@ impl<'shell> Session<'shell> {
                 Key::Char(c) => {
                     if offset == buffer.len() {
                         buffer.push(c);
-                        offset += 1;
                     } else {
                         buffer.insert(offset, c);
-                        offset += 1;
                     }
+
+                    offset += 1;
                 }
                 Key::Backspace => {
                     if offset > 0 {
@@ -254,5 +252,16 @@ impl<'shell> Session<'shell> {
 
     pub fn history_sync(&self) -> Result<(), std::io::Error> {
         self.history.sync()
+    }
+}
+
+impl Drop for Session<'_> {
+    fn drop(&mut self) {
+        if let Err(err) = self.history.sync() {
+            eprintln!(
+                "Error: could not write session history to history file: {}",
+                err
+            );
+        }
     }
 }
