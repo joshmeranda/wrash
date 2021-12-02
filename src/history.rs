@@ -1,5 +1,5 @@
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
 use xdg::BaseDirectories;
@@ -98,7 +98,19 @@ impl History {
     pub fn sync(&self) -> Result<(), std::io::Error> {
         let s = serde_yaml::to_string(self.history.as_slice())
             .expect("to-string should not have erred");
-        let mut history_file = File::create(self.path.as_path())?;
+        let mut history_file = match File::create(self.path.as_path()) {
+            Ok(f) => f,
+            Err(err) => match err.kind() {
+                ErrorKind::NotFound => {
+                    if let Some(parent) = self.path.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+
+                    File::open(self.path.as_path())?
+                },
+                _ => return Err(err)
+            }
+        };
 
         write!(history_file, "{}", s)?;
 

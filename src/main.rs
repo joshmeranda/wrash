@@ -34,8 +34,8 @@ fn run(command: &str, args: &[String]) -> Result<(), i32> {
             -1
         }
         Ok(mut child) => match child.wait() {
-            // todo: better handle signal interrupts here (don't just return -1)
-            Ok(status) => status.code().unwrap_or(-2),
+            // todo: better handle signal interrupts here (don't just return 255)
+            Ok(status) => status.code().unwrap_or(255),
             Err(err) => {
                 eprintln!("command '{}' never started: {}", command, err);
 
@@ -65,7 +65,7 @@ fn wrapped_main() -> Result<(), i32> {
         Ok(history) => history,
         Err(err) => {
             eprintln!("Could not establish proper history: {}", err);
-            return Err(1); // todo: we probably want to ust continue with an in-memory history
+            return Err(1); // todo: we probably want to just continue with an in-memory history
         }
     };
 
@@ -79,7 +79,7 @@ fn wrapped_main() -> Result<(), i32> {
     while should_continue {
         let _ = io::stdout().flush();
 
-        // todo: we will likely want to do the splitting ourselves or add post-processing to allow for globbing so that we can handle globs better
+        // todo: we will likely want to do the splitting ourselves or add post-processing to allow for globbing so that we can handle globs
         let cmd = match session.take_input() {
             Ok(c) => c,
             Err(err) => {

@@ -101,6 +101,7 @@ impl<'shell> Session<'shell> {
 
         write!(stdout, "{}", Right(1))?;
 
+        // todo: do not append the base command when in wrapped mode
         for key in stdin.keys() {
             match key.unwrap() {
                 Key::Char('\n') => break,
@@ -257,7 +258,7 @@ impl<'shell> Session<'shell> {
 
 impl Drop for Session<'_> {
     fn drop(&mut self) {
-        if let Err(err) = self.history.sync() {
+        if let Err(err) = self.history_sync() {
             eprintln!(
                 "Error: could not write session history to history file: {}",
                 err
