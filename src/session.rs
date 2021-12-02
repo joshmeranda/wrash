@@ -123,7 +123,6 @@ impl<'shell> Session<'shell> {
                 Key::Delete => {
                     if offset < buffer.len() {
                         buffer.remove(offset);
-                        offset -= 1;
                     }
                 }
                 Key::Left => {
