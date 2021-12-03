@@ -70,6 +70,8 @@ impl<'shell> Session<'shell> {
     }
 
     /// Take user input.
+    ///
+    /// todo: handle returning terminal mode to normal when session is in normal mode
     pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();

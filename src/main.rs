@@ -7,6 +7,7 @@ extern crate serde_derive;
 mod builtins;
 mod history;
 mod session;
+mod completion;
 
 use std::env;
 use std::io::{self, Write};
