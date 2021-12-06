@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
-use std::io;
+use std::{env, io};
 use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
@@ -10,9 +11,27 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
+use faccess::PathExt;
+use serde_yaml::to_string;
+
+use crate::completion;
 use crate::history::{History, HistoryEntry, HistoryIterator};
 
 use crate::prompt;
+
+/// Get the position in a string at which the current word begins.
+///
+/// todo: handle escaped spaces (ie '\ ')
+fn get_word_start(buffer: &str, cursor_offset: usize) -> usize {
+    let mut position = cursor_offset;
+
+
+    while position > 0 && buffer.chars().nth(position - 1).unwrap() != ' ' {
+        position -= 1;
+    }
+
+    position
+}
 
 /// Enum describing the current session execution mode.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
@@ -44,6 +63,7 @@ impl Display for SessionMode {
     }
 }
 
+// todo: ass support for frozen mode (cannot use `setmode` to change the shell session mode to normal)
 pub struct Session<'shell> {
     history: History,
 
@@ -72,6 +92,7 @@ impl<'shell> Session<'shell> {
     /// Take user input.
     ///
     /// todo: handle returning terminal mode to normal when session is in normal mode
+    /// todo: consider a callback architecture to make it easier to reset tab_is_hit
     pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();
@@ -93,8 +114,10 @@ impl<'shell> Session<'shell> {
             })
             .rev()
             .collect();
-        let mut history_offset = None;
-        let mut buffer_bak = None;
+        let mut history_offset: Option<usize> = None;
+        let mut buffer_bak: Option<String> = None;
+
+        let mut is_tab_hit = false;
 
         let prompt = prompt();
 
@@ -105,17 +128,7 @@ impl<'shell> Session<'shell> {
 
         // todo: implement some tab-completion (even if its just files)
         for key in stdin.keys() {
-            match key.unwrap() {
-                Key::Char('\n') => break,
-                Key::Char(c) => {
-                    if offset == buffer.len() {
-                        buffer.push(c);
-                    } else {
-                        buffer.insert(offset, c);
-                    }
-
-                    offset += 1;
-                }
+            match key.unwrap() {// character deletion
                 Key::Backspace => {
                     if offset > 0 {
                         buffer.remove(offset - 1);
@@ -127,6 +140,8 @@ impl<'shell> Session<'shell> {
                         buffer.remove(offset);
                     }
                 }
+
+                // cursor movement
                 Key::Left => {
                     if offset != 0 {
                         offset -= 1;
@@ -152,7 +167,7 @@ impl<'shell> Session<'shell> {
                     };
 
                     if let Some(entry) = history_entries.get(history_offset.unwrap()) {
-                        if entry.mode == SessionMode::Wrapped && ! entry.is_builtin {
+                        if entry.mode == SessionMode::Wrapped && !entry.is_builtin {
                             buffer = entry.argv.clone();
                         } else {
                             buffer = entry.get_command();
@@ -177,7 +192,7 @@ impl<'shell> Session<'shell> {
 
                     if let Some(history_offset) = history_offset {
                         if let Some(entry) = history_entries.get(history_offset) {
-                            if entry.mode == SessionMode::Wrapped && ! entry.is_builtin {
+                            if entry.mode == SessionMode::Wrapped && !entry.is_builtin {
                                 buffer = entry.argv.clone();
                             } else {
                                 buffer = entry.get_command();
@@ -201,15 +216,34 @@ impl<'shell> Session<'shell> {
 
                 // screen control
                 // todo: write lines and scroll rather than clearing screen
-                Key::Ctrl('l') => write!(
-                    stdout,
-                    "{}{}{}{}{}",
-                    Restore,
-                    All,
-                    Right(offset as u16),
-                    Goto(1, 1),
-                    Save
-                )?,
+                Key::Ctrl('l') => {
+                    write!(
+                        stdout,
+                        "{}{}{}{}{}",
+                        Restore,
+                        All,
+                        Right(offset as u16),
+                        Goto(1, 1),
+                        Save
+                    )?
+                },
+
+                // tab completion
+                Key::Char('\t') => {
+                    // todo: if multiple matches save matches and wait for second TAB
+                    // todo: is single match insert into the buffer
+                }
+
+                Key::Char('\n') => break,
+                Key::Char(c) => {
+                    if offset == buffer.len() {
+                        buffer.push(c);
+                    } else {
+                        buffer.insert(offset, c);
+                    }
+
+                    offset += 1;
+                }
 
                 _ => { /* do nothing */ }
             };
@@ -224,6 +258,7 @@ impl<'shell> Session<'shell> {
                 Restore,
                 Right((prompt.len() + offset) as u16)
             )?;
+
             stdout.flush()?;
         }
 
@@ -274,5 +309,77 @@ impl Drop for Session<'_> {
                 err
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod test_get_word_start {
+    use crate::session;
+
+    #[test]
+    fn get_word_start_single_from_end() {
+        let buffer = "word";
+        let offset = buffer.len();
+
+        let expected = 0;
+        let actual = session::get_word_start(buffer, offset);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_word_start_single_from_middle() {
+        let buffer = "word";
+        let offset = buffer.len() / 2;
+
+        let expected = 0;
+        let actual = session::get_word_start(buffer, offset);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_word_start_single_from_starr() {
+        let buffer = "word";
+        let offset = 0;
+
+        let expected = 0;
+        let actual = session::get_word_start(buffer, offset);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_word_start_multiple_last_word() {
+        let buffer = "some example words";
+        let offset = buffer.len();
+
+        let expected = 13;
+        let actual = session::get_word_start(buffer, offset);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn get_word_start_multiple_last_word_from_start() {
+        let buffer = "some example words";
+        let offset = 13;
+
+        let expected = 13;
+        let actual = session::get_word_start(buffer, offset);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[ignore]
+    #[test]
+    fn get_word_start_escaped_space() {
+        let buffer = "escaped\\ space";
+        let offset = buffer.len();
+
+        let expected = 0;
+        let actual = session::get_word_start(buffer, offset);
+
+        assert_eq!(expected, actual);
     }
 }

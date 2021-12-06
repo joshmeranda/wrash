@@ -5,8 +5,7 @@ use std::str::Split;
 
 use glob::{self, PatternError};
 
-// todo: each of these methods should allow for filtering executables
-// todo: return Iterator over PathBufs rather than Vec<PathBuf>
+// todo: add common prefix finder
 
 /// Search a directory for a paths with the given prefix. If there are multiple
 /// matches the shorted available match is returned.
