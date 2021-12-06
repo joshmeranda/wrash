@@ -1,18 +1,21 @@
 use std::path::PathBuf;
 use std::env;
+use std::iter::{Flatten, Map};
+use std::str::Split;
 
 use glob::{self, PatternError};
 
 // todo: each of these methods should allow for filtering executables
+// todo: return Iterator over PathBufs rather than Vec<PathBuf>
 
 /// Search a directory for a paths with the given prefix. If there are multiple
 /// matches the shorted available match is returned.
 ///
 /// If any error is encountered while reading a file, that file is ignored.
-pub fn search_dir(prefix: &str) -> Result<Vec<PathBuf>, PatternError> {
+pub fn search_dir(prefix: &str) -> Result<impl Iterator<Item = PathBuf>, PatternError> {
     let dir_glob = format!("{}*", prefix);
 
-    Ok(glob::glob(dir_glob.as_str())?.filter_map(Result::ok).collect())
+    Ok(glob::glob(dir_glob.as_str())?.filter_map(Result::ok))
 }
 
 /// Searches the directories on the system's PATH environment variable for
@@ -20,22 +23,22 @@ pub fn search_dir(prefix: &str) -> Result<Vec<PathBuf>, PatternError> {
 /// directories.
 ///
 /// If any error is encountered while reading a file, that file is ignored.
-pub fn search_path(prefix: &str) -> Result<Vec<PathBuf>, PatternError> {
-    let path_val = env::var("PATH").unwrap_or_else(|_| "".to_string());
-    let mut globs: Vec<PathBuf> = vec![];
+pub fn search_path<'a>(prefix: &'a str, path_val: &'a str) -> Result<impl Iterator<Item = PathBuf> + 'a, PatternError> {
+    let globs = path_val.split(':').map(move |dir: &str| {
+        // todo: user PathUBf::join t use the right path separator
+        let full_prefix = format!("{}/{}", dir.to_string(), prefix);
 
-    for dir in path_val.split(':') {
-        let prefix = format!("{}/{}", dir, prefix);
-        let found = search_dir(prefix.as_str())?;
-        let mut base_names: Vec<PathBuf> = found.iter().map(|path| {
-            match path.file_name() {
-                Some(base_name) => PathBuf::from(base_name),
-                None => path.clone(),
-            }
-        }).collect();
+        // todo: handle pattern errors
+        let found = search_dir(full_prefix.as_str()).unwrap().into_iter()
+            .map(|path| {
+                match path.file_name() {
+                    Some(base_name) => PathBuf::from(base_name),
+                    None => path,
+                }
+            });
 
-        globs.append(&mut base_names);
-    }
+        found
+    }).flatten();
 
     Ok(globs)
 }
@@ -63,14 +66,12 @@ mod test {
         fs::create_dir(&c_path);
         fs::write(&d_path, "")?;
 
-        let actual = completion::search_dir(format!("{}/", dir_path.to_str().unwrap()).as_str())?;
-        let expected = vec![
-            a_path,
-            b_path,
-            c_path,
-        ];
+        let mut actual = completion::search_dir(format!("{}/", dir_path.to_str().unwrap()).as_str())?;
 
-        assert_eq!(expected, actual);
+        assert_eq!(Some(a_path), actual.next());
+        assert_eq!(Some(b_path), actual.next());
+        assert_eq!(Some(c_path), actual.next());
+        assert_eq!(None, actual.next());
 
         Ok(())
     }
@@ -90,13 +91,11 @@ mod test {
         fs::create_dir(&directory_path);
         fs::write(&a_child_path, "")?;
 
-        let actual = completion::search_dir(format!("{}/a", dir_path.to_str().unwrap()).as_str())?;
-        let expected = vec![
-            a_file_path,
-            another_path,
-        ];
+        let mut actual = completion::search_dir(format!("{}/a", dir_path.to_str().unwrap()).as_str())?;
 
-        assert_eq!(expected, actual);
+        assert_eq!(Some(a_file_path), actual.next());
+        assert_eq!(Some(another_path), actual.next());
+        assert_eq!(None, actual.next());
 
         Ok(())
     }
@@ -104,9 +103,6 @@ mod test {
     #[test]
     fn test_on_path() -> Result<(), Box<dyn std::error::Error>> {
         let temp_dirs = vec![tempfile::tempdir()?, tempfile::tempdir()?];
-
-        let new_path = temp_dirs.iter().map(|entry| entry.path().to_str().unwrap()).collect::<Vec<&str>>().join(":");
-        env::set_var("PATH", new_path);
 
         let a_file = temp_dirs[0].path().join("a_file");
         let some_other_file = temp_dirs[0].path().join("some_other_file");
@@ -124,15 +120,13 @@ mod test {
         fs::write(yet_another_file, "")?;
         fs::write(a_final_file, "")?;
 
-        let actual = completion::search_path("a")?;
-        let expected = vec![
-            PathBuf::from("a_file"),
-            PathBuf::from("another_file"),
-            PathBuf::from("a_final_file"),
-            PathBuf::from("another_another_file"),
-        ];
+        let new_path = temp_dirs.iter().map(|entry| entry.path().to_str().unwrap()).collect::<Vec<&str>>().join(":");
+        let mut actual = completion::search_path("a", new_path.as_str())?;
 
-        assert_eq!(expected, actual);
+        assert_eq!(Some(PathBuf::from("a_file")), actual.next());
+        assert_eq!(Some(PathBuf::from("another_file")), actual.next());
+        assert_eq!(Some(PathBuf::from("a_final_file")), actual.next());
+        assert_eq!(Some(PathBuf::from("another_another_file")), actual.next());
 
         Ok(())
     }
