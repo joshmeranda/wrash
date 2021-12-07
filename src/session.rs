@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
+use std::env;
 use std::fmt::{Display, Formatter};
-use std::{env, io};
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::io::{self, Write};
+use std::path::{self, Path, PathBuf};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
@@ -12,7 +12,6 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
 use faccess::PathExt;
-use serde_yaml::to_string;
 
 use crate::completion;
 use crate::history::{History, HistoryEntry, HistoryIterator};
@@ -31,6 +30,46 @@ fn get_word_start(buffer: &str, cursor_offset: usize) -> usize {
     }
 
     position
+}
+
+/// Get the tab completion values.
+fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
+    let prefix_path = Path::new(prefix);
+
+    let has_parent = ! prefix.is_empty()
+        && prefix[prefix.len() - 1..] == path::MAIN_SEPARATOR.to_string()
+        || prefix_path.parent().map_or(false, |parent| ! parent.as_os_str().is_empty());
+
+    if is_command {
+        // if the prefix has a parent component, search for directories or executables
+        if has_parent {
+            return completion::search_dir(prefix).unwrap()
+                .filter(|path| path.executable())
+                .map(|path| format!("{}{}", prefix, path.to_string_lossy().to_string()))
+                .collect();
+        }
+
+        // if the prefix does not have a parent component, search on path or directories
+        let path_var = env::var("PATH").unwrap_or_else(|_| "".to_string());
+        let in_path = completion::search_path(prefix, path_var.as_str())
+            .unwrap()
+            .map(|path| path.to_string_lossy().to_string());
+
+        let in_dir = completion::search_dir(prefix).unwrap()
+            .filter(|path| path.is_dir())
+            .map(|path| path.to_string_lossy().to_string());
+
+        in_dir.chain(in_path).collect()
+    } else {
+        completion::search_dir(prefix).unwrap()
+            .map(|path| {
+                match path.file_name() {
+                    Some(base_name) => PathBuf::from(base_name),
+                    None => path,
+                }.to_string_lossy().to_string()
+            })
+            .collect()
+    }
 }
 
 /// Enum describing the current session execution mode.
@@ -116,8 +155,6 @@ impl<'shell> Session<'shell> {
             .collect();
         let mut history_offset: Option<usize> = None;
         let mut buffer_bak: Option<String> = None;
-
-        let mut is_tab_hit = false;
 
         let prompt = prompt();
 
@@ -371,9 +408,11 @@ mod test_get_word_start {
         assert_eq!(expected, actual);
     }
 
-    #[ignore]
+    #[ignore] // todo: support for escaped whitespace is not yet implemented
     #[test]
     fn get_word_start_escaped_space() {
+        todo!("support for escaped whitespace is not yet implemented");
+
         let buffer = "escaped\\ space";
         let offset = buffer.len();
 
@@ -381,5 +420,169 @@ mod test_get_word_start {
         let actual = session::get_word_start(buffer, offset);
 
         assert_eq!(expected, actual);
+    }
+}
+
+#[cfg(test)]
+mod test_get_tab_completion {
+    use std::env;
+    use std::path::PathBuf;
+    use crate::session;
+
+    fn get_resource_path(components: &[&str]) -> PathBuf {
+        components.iter().fold(PathBuf::from("tests").join("resources"),
+                               |acc, component| acc.join(component))
+    }
+
+    /// this method changes the cwd, only run with `--test-threads 1`
+
+    #[ignore]
+    #[test]
+    fn test_get_tab_completion_empty_prefix() -> Result<(), Box<dyn std::error::Error>> {
+        let old_cwd = env::current_dir()?;
+        let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
+
+        let new_path = get_resource_path(&["some_other_directory"]).canonicalize()?;
+
+        env::set_var("PATH", new_path);
+
+        env::set_current_dir(new_cwd.as_path())?;
+        let actual = session::get_tab_completions("", true);
+        env::set_current_dir(old_cwd)?;
+
+        let expected: Vec<String> = vec![
+            // todo: add trailing slash for directory name (ie "directory/")
+            String::from("directory"),
+
+            // form path
+            String::from("a_final_file"),
+            String::from("yet_another_file"),
+        ];
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[ignore]
+    #[test]
+    fn test_get_tab_completion() -> Result<(), Box<dyn std::error::Error>> {
+        let old_cwd = env::current_dir()?;
+        let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
+
+        let new_path = get_resource_path(&["some_other_directory"]).canonicalize()?;
+
+        env::set_var("PATH", new_path);
+
+        env::set_current_dir(new_cwd.as_path())?;
+        let actual = session::get_tab_completions("a", true);
+        env::set_current_dir(old_cwd)?;
+
+        let expected: Vec<String> = vec![
+            // from path
+            String::from("a_final_file"),
+        ];
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[ignore]
+    #[test]
+    fn test_get_tab_completion_with_parent() -> Result<(), Box<dyn std::error::Error>> {
+        let old_cwd = env::current_dir()?;
+        let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
+
+        let new_path = get_resource_path(&["some_other_directory"]).canonicalize()?;
+
+        env::set_var("PATH", new_path);
+
+        env::set_current_dir(new_cwd.as_path())?;
+        let actual = session::get_tab_completions("./", true);
+        env::set_current_dir(old_cwd)?;
+
+        let expected: Vec<String> = vec![
+            String::from("./a_file"),
+            String::from("./directory"),
+            String::from("./some_other_file"),
+        ];
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[ignore]
+    #[test]
+    fn test_get_tab_completion_non_cmd_empty_prefix() -> Result<(), Box<dyn std::error::Error>> {
+        let old_cwd = env::current_dir()?;
+        let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
+
+        let new_path = get_resource_path(&["some_other_directory"]).canonicalize()?;
+
+        env::set_var("PATH", new_path);
+
+        env::set_current_dir(new_cwd.as_path())?;
+        let actual = session::get_tab_completions("", false);
+        env::set_current_dir(old_cwd)?;
+
+        let expected: Vec<String> = vec![
+            String::from("a_file"),
+            String::from("another_file"),
+            String::from("directory"),
+            String::from("some_other_file"),
+        ];
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[ignore]
+    #[test]
+    fn test_get_tab_completion_non_cmd() -> Result<(), Box<dyn std::error::Error>> {
+        let old_cwd = env::current_dir()?;
+        let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
+
+        let new_path = get_resource_path(&["some_other_directory"]).canonicalize()?;
+
+        env::set_var("PATH", new_path);
+
+        env::set_current_dir(new_cwd.as_path())?;
+        let actual = session::get_tab_completions("a", false);
+        env::set_current_dir(old_cwd)?;
+
+        let expected: Vec<String> = vec![
+            String::from("a_file"),
+            String::from("another_file"),
+        ];
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[ignore]
+    #[test]
+    fn test_get_tab_completion_non_cmd_with_parent() -> Result<(), Box<dyn std::error::Error>> {
+        let old_cwd = env::current_dir()?;
+        let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
+
+        let new_path = get_resource_path(&["some_other_directory"]).canonicalize()?;
+
+        env::set_var("PATH", new_path);
+
+        env::set_current_dir(new_cwd.as_path())?;
+        let actual = session::get_tab_completions("directory/", false);
+        env::set_current_dir(old_cwd)?;
+
+        let expected: Vec<String> = vec![
+            String::from("a_child"),
+        ];
+
+        assert_eq!(expected, actual);
+
+        Ok(())
     }
 }

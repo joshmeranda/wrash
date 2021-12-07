@@ -1,11 +1,10 @@
 use std::path::PathBuf;
-use std::env;
-use std::iter::{Flatten, Map};
-use std::str::Split;
+use faccess::PathExt;
 
 use glob::{self, PatternError};
 
 // todo: add common prefix finder
+// todo: handle duplicates
 
 /// Search a directory for a paths with the given prefix. If there are multiple
 /// matches the shorted available match is returned.
@@ -24,11 +23,12 @@ pub fn search_dir(prefix: &str) -> Result<impl Iterator<Item = PathBuf>, Pattern
 /// If any error is encountered while reading a file, that file is ignored.
 pub fn search_path<'a>(prefix: &'a str, path_val: &'a str) -> Result<impl Iterator<Item = PathBuf> + 'a, PatternError> {
     let globs = path_val.split(':').map(move |dir: &str| {
-        // todo: user PathUBf::join t use the right path separator
+        // todo: user PathUBf::join to use the right path separator
         let full_prefix = format!("{}/{}", dir.to_string(), prefix);
 
         // todo: handle pattern errors
         let found = search_dir(full_prefix.as_str()).unwrap().into_iter()
+            .filter(|path| ! path.is_dir() && path.executable())
             .map(|path| {
                 match path.file_name() {
                     Some(base_name) => PathBuf::from(base_name),
@@ -46,30 +46,24 @@ pub fn search_path<'a>(prefix: &'a str, path_val: &'a str) -> Result<impl Iterat
 mod test {
     use std::fs;
     use std::env;
-    use std::path::PathBuf;
-    use tempfile::{self, TempDir};
+    use std::path::{Path, PathBuf};
     use crate::completion;
+
+    fn get_resource_path(components: &[&str]) -> PathBuf {
+        components.iter().fold(PathBuf::from("tests").join("resources"),
+                               |acc, component| acc.join(component))
+    }
 
     #[test]
     fn test_search_dir_empty_prefix() -> Result<(), Box<dyn std::error::Error>> {
-        let dir = tempfile::tempdir()?;
-        let dir_path = dir.path();
-
-        let a_path = PathBuf::from(dir_path).join("a");
-        let b_path = PathBuf::from(dir_path).join("b");
-        let c_path = PathBuf::from(dir_path).join("c");
-        let d_path = PathBuf::from(&c_path).join("d");
-
-        fs::write(&a_path, "")?;
-        fs::write(&b_path, "")?;
-        fs::create_dir(&c_path);
-        fs::write(&d_path, "")?;
+        let dir_path = get_resource_path(&["a_directory"]);
 
         let mut actual = completion::search_dir(format!("{}/", dir_path.to_str().unwrap()).as_str())?;
 
-        assert_eq!(Some(a_path), actual.next());
-        assert_eq!(Some(b_path), actual.next());
-        assert_eq!(Some(c_path), actual.next());
+        assert_eq!(Some(get_resource_path(&["a_directory", "a_file"])), actual.next());
+        assert_eq!(Some(get_resource_path(&["a_directory", "another_file"])), actual.next());
+        assert_eq!(Some(get_resource_path(&["a_directory", "directory"])), actual.next());
+        assert_eq!(Some(get_resource_path(&["a_directory", "some_other_file"])), actual.next());
         assert_eq!(None, actual.next());
 
         Ok(())
@@ -77,23 +71,12 @@ mod test {
 
     #[test]
     fn test_search_dir_with_common_prefix() -> Result<(), Box<dyn std::error::Error>> {
-        let dir = tempfile::tempdir()?;
-        let dir_path = dir.path();
-
-        let a_file_path = PathBuf::from(dir_path).join("a_file");
-        let another_path = PathBuf::from(dir_path).join("another_file");
-        let directory_path = PathBuf::from(dir_path).join("directory");
-        let a_child_path = PathBuf::from(&directory_path).join("a_child");
-
-        fs::write(&a_file_path, "")?;
-        fs::write(&another_path, "")?;
-        fs::create_dir(&directory_path);
-        fs::write(&a_child_path, "")?;
+        let dir_path = get_resource_path(&["a_directory"]);
 
         let mut actual = completion::search_dir(format!("{}/a", dir_path.to_str().unwrap()).as_str())?;
 
-        assert_eq!(Some(a_file_path), actual.next());
-        assert_eq!(Some(another_path), actual.next());
+        assert_eq!(Some(get_resource_path(&["a_directory", "a_file"])), actual.next());
+        assert_eq!(Some(get_resource_path(&["a_directory", "another_file"])), actual.next());
         assert_eq!(None, actual.next());
 
         Ok(())
@@ -101,31 +84,16 @@ mod test {
 
     #[test]
     fn test_on_path() -> Result<(), Box<dyn std::error::Error>> {
-        let temp_dirs = vec![tempfile::tempdir()?, tempfile::tempdir()?];
+        let new_path = vec![
+            get_resource_path(&["a_directory"]),
+            get_resource_path(&["some_other_directory"]),
+        ].iter().map(|entry| entry.to_str().unwrap()).collect::<Vec<&str>>().join(":");
 
-        let a_file = temp_dirs[0].path().join("a_file");
-        let some_other_file = temp_dirs[0].path().join("some_other_file");
-        let another_file = temp_dirs[0].path().join("another_file");
-
-        let another_another_file = temp_dirs[1].path().join("another_another_file");
-        let yet_another_file = temp_dirs[1].path().join("yet_another_file");
-        let a_final_file = temp_dirs[1].path().join("a_final_file");
-
-        fs::write(a_file, "")?;
-        fs::write(some_other_file, "")?;
-        fs::write(another_file, "")?;
-
-        fs::write(another_another_file, "")?;
-        fs::write(yet_another_file, "")?;
-        fs::write(a_final_file, "")?;
-
-        let new_path = temp_dirs.iter().map(|entry| entry.path().to_str().unwrap()).collect::<Vec<&str>>().join(":");
         let mut actual = completion::search_path("a", new_path.as_str())?;
 
         assert_eq!(Some(PathBuf::from("a_file")), actual.next());
-        assert_eq!(Some(PathBuf::from("another_file")), actual.next());
         assert_eq!(Some(PathBuf::from("a_final_file")), actual.next());
-        assert_eq!(Some(PathBuf::from("another_another_file")), actual.next());
+        assert_eq!(None, actual.next());
 
         Ok(())
     }
