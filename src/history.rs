@@ -81,7 +81,7 @@ impl History {
 
             match serde_yaml::from_str(s.as_str()) {
                 Ok(history) => history,
-                Err(err) => return Err(err.to_string())
+                Err(err) => return Err(err.to_string()),
             }
         } else {
             vec![]
@@ -107,9 +107,9 @@ impl History {
                     }
 
                     File::open(self.path.as_path())?
-                },
-                _ => return Err(err)
-            }
+                }
+                _ => return Err(err),
+            },
         };
 
         write!(history_file, "{}", s)?;

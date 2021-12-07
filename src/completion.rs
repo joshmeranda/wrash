@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use faccess::PathExt;
+use std::path::PathBuf;
 
 use glob::{self, PatternError};
 
@@ -21,49 +21,68 @@ pub fn search_dir(prefix: &str) -> Result<impl Iterator<Item = PathBuf>, Pattern
 /// directories.
 ///
 /// If any error is encountered while reading a file, that file is ignored.
-pub fn search_path<'a>(prefix: &'a str, path_val: &'a str) -> Result<impl Iterator<Item = PathBuf> + 'a, PatternError> {
-    let globs = path_val.split(':').map(move |dir: &str| {
-        // todo: user PathUBf::join to use the right path separator
-        let full_prefix = format!("{}/{}", dir.to_string(), prefix);
+pub fn search_path<'a>(
+    prefix: &'a str,
+    path_val: &'a str,
+) -> Result<impl Iterator<Item = PathBuf> + 'a, PatternError> {
+    let globs = path_val
+        .split(':')
+        .map(move |dir: &str| {
+            // todo: user PathUBf::join to use the right path separator
+            let full_prefix = format!("{}/{}", dir.to_string(), prefix);
 
-        // todo: handle pattern errors
-        let found = search_dir(full_prefix.as_str()).unwrap().into_iter()
-            .filter(|path| ! path.is_dir() && path.executable())
-            .map(|path| {
-                match path.file_name() {
+            // todo: handle pattern errors
+            let found = search_dir(full_prefix.as_str())
+                .unwrap()
+                .into_iter()
+                .filter(|path| !path.is_dir() && path.executable())
+                .map(|path| match path.file_name() {
                     Some(base_name) => PathBuf::from(base_name),
                     None => path,
-                }
-            });
+                });
 
-        found
-    }).flatten();
+            found
+        })
+        .flatten();
 
     Ok(globs)
 }
 
 #[cfg(test)]
 mod test {
-    use std::fs;
-    use std::env;
-    use std::path::{Path, PathBuf};
     use crate::completion;
+    use std::path::PathBuf;
 
     fn get_resource_path(components: &[&str]) -> PathBuf {
-        components.iter().fold(PathBuf::from("tests").join("resources"),
-                               |acc, component| acc.join(component))
+        components.iter().fold(
+            PathBuf::from("tests").join("resources"),
+            |acc, component| acc.join(component),
+        )
     }
 
     #[test]
     fn test_search_dir_empty_prefix() -> Result<(), Box<dyn std::error::Error>> {
         let dir_path = get_resource_path(&["a_directory"]);
 
-        let mut actual = completion::search_dir(format!("{}/", dir_path.to_str().unwrap()).as_str())?;
+        let mut actual =
+            completion::search_dir(format!("{}/", dir_path.to_str().unwrap()).as_str())?;
 
-        assert_eq!(Some(get_resource_path(&["a_directory", "a_file"])), actual.next());
-        assert_eq!(Some(get_resource_path(&["a_directory", "another_file"])), actual.next());
-        assert_eq!(Some(get_resource_path(&["a_directory", "directory"])), actual.next());
-        assert_eq!(Some(get_resource_path(&["a_directory", "some_other_file"])), actual.next());
+        assert_eq!(
+            Some(get_resource_path(&["a_directory", "a_file"])),
+            actual.next()
+        );
+        assert_eq!(
+            Some(get_resource_path(&["a_directory", "another_file"])),
+            actual.next()
+        );
+        assert_eq!(
+            Some(get_resource_path(&["a_directory", "directory"])),
+            actual.next()
+        );
+        assert_eq!(
+            Some(get_resource_path(&["a_directory", "some_other_file"])),
+            actual.next()
+        );
         assert_eq!(None, actual.next());
 
         Ok(())
@@ -73,10 +92,17 @@ mod test {
     fn test_search_dir_with_common_prefix() -> Result<(), Box<dyn std::error::Error>> {
         let dir_path = get_resource_path(&["a_directory"]);
 
-        let mut actual = completion::search_dir(format!("{}/a", dir_path.to_str().unwrap()).as_str())?;
+        let mut actual =
+            completion::search_dir(format!("{}/a", dir_path.to_str().unwrap()).as_str())?;
 
-        assert_eq!(Some(get_resource_path(&["a_directory", "a_file"])), actual.next());
-        assert_eq!(Some(get_resource_path(&["a_directory", "another_file"])), actual.next());
+        assert_eq!(
+            Some(get_resource_path(&["a_directory", "a_file"])),
+            actual.next()
+        );
+        assert_eq!(
+            Some(get_resource_path(&["a_directory", "another_file"])),
+            actual.next()
+        );
         assert_eq!(None, actual.next());
 
         Ok(())
@@ -87,7 +113,11 @@ mod test {
         let new_path = vec![
             get_resource_path(&["a_directory"]),
             get_resource_path(&["some_other_directory"]),
-        ].iter().map(|entry| entry.to_str().unwrap()).collect::<Vec<&str>>().join(":");
+        ]
+        .iter()
+        .map(|entry| entry.to_str().unwrap())
+        .collect::<Vec<&str>>()
+        .join(":");
 
         let mut actual = completion::search_path("a", new_path.as_str())?;
 
