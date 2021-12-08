@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::io::{self, Write};
-use std::path::{self, Path, PathBuf};
+use std::path::{self, Component, Path, PathBuf};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
@@ -17,6 +17,16 @@ use crate::completion;
 use crate::history::{History, HistoryEntry, HistoryIterator};
 
 use crate::prompt;
+
+/// Determine if a `Path`s top level directory is the current directory (ie.
+/// `.`).
+fn is_current_directory(path: &Path) -> bool {
+    if let Some(top) = path.components().next() {
+        top == Component::CurDir
+    } else {
+        false
+    }
+}
 
 /// Get the position in a string at which the current word begins.
 ///
@@ -60,7 +70,7 @@ fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
         let in_dir = completion::search_dir(prefix)
             .unwrap()
             .filter(|path| path.is_dir())
-            .map(|path| if prefix == "./" { // todo: this is a unix specific check (BAD)
+            .map(|path| if is_current_directory(prefix_path) {
                 PathBuf::from(".").join(path)
             } else {
                 path
@@ -71,7 +81,7 @@ fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
     } else {
         completion::search_dir(prefix)
             .unwrap()
-            .map(|path| if prefix == "./" { // todo: this is a unix specific check (BAD)
+            .map(|path| if is_current_directory(prefix_path) {
                 PathBuf::from(".").join(path)
             } else {
                 path
@@ -321,10 +331,14 @@ impl<'shell> Session<'shell> {
                     let completions = get_tab_completions(&buffer[word_start..offset], is_command);
 
                     if completions.len() == 1 {
-                        write!(stdout, "|{:?}| {:?}..{:?} | {:?} -> {:?}", completions.len(), word_start, offset, &buffer[word_start..offset], completions[0].as_str());
+                        // write!(stdout, "|{:?}| {:?}..{:?} | {:?} -> {:?}", completions.len(), word_start, offset, &buffer[word_start..offset], completions[0].as_str());
+                        write!(stdout, " | [prefix {:?}] [completion {:?}] [word_start {:?}] {:?} -> ", &buffer[word_start..offset], completions[0].as_str(), word_start, buffer);
 
                         buffer.replace_range(word_start..offset, completions[0].as_str());
-                        offset = buffer.len()
+                        offset = buffer.len();
+
+                        write!(stdout, "{:?}|", buffer);
+
                     } else if completions.len() > 1 {
                         if was_tab_hit { // handle previous tab hit
                             // todo: print completions to screen
@@ -336,8 +350,8 @@ impl<'shell> Session<'shell> {
                         }
                     }
 
-                    // stdout.flush();
-                    // std::thread::sleep(std::time::Duration::from_secs(2));
+                    stdout.flush();
+                    std::thread::sleep(std::time::Duration::from_secs(5));
                 }
 
                 Key::Char('\n') => break,
@@ -575,6 +589,29 @@ mod tests {
                 String::from("./a_file"),
                 String::from("./directory"),
                 String::from("./some_other_file"),
+            ];
+
+            assert_eq!(expected, actual);
+
+            Ok(())
+        }
+
+        #[ignore]
+        #[test]
+        fn test_get_tab_completion_with_dot_parent() -> Result<(), Box<dyn std::error::Error>> {
+            let old_cwd = env::current_dir()?;
+            let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
+
+            let new_path = "";
+
+            env::set_var("PATH", new_path);
+
+            env::set_current_dir(new_cwd.as_path())?;
+            let actual = session::get_tab_completions("./a", true);
+            env::set_current_dir(old_cwd)?;
+
+            let expected: Vec<String> = vec![
+                Path::new(".").join("a_file").to_string_lossy().to_string(),
             ];
 
             assert_eq!(expected, actual);
