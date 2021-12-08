@@ -1,13 +1,13 @@
 use faccess::PathExt;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
-use glob::{self, PatternError};
+use glob::{self, MatchOptions, PatternError};
 
 // todo: add common prefix finder
 // todo: handle duplicates
 
-/// Search a directory for a paths with the given prefix. If there are multiple
-/// matches the shorted available match is returned.
+/// Search the file system for paths with a given prefix allowing for wildcards. The returns
+/// `pathBuf`s are normalized (meaning any `.` and `..` are stripped out.
 ///
 /// If any error is encountered while reading a file, that file is ignored.
 pub fn search_dir(prefix: &str) -> Result<impl Iterator<Item = PathBuf>, PatternError> {
@@ -28,8 +28,7 @@ pub fn search_path<'a>(
     let globs = path_val
         .split(':')
         .map(move |dir: &str| {
-            // todo: user PathUBf::join to use the right path separator
-            let full_prefix = format!("{}/{}", dir.to_string(), prefix);
+            let full_prefix = Path::new(dir).join(prefix).to_string_lossy().to_string();
 
             // todo: handle pattern errors
             let found = search_dir(full_prefix.as_str())
@@ -50,8 +49,9 @@ pub fn search_path<'a>(
 
 #[cfg(test)]
 mod test {
+    use std::env;
     use crate::completion;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     fn get_resource_path(components: &[&str]) -> PathBuf {
         components.iter().fold(
@@ -92,8 +92,7 @@ mod test {
     fn test_search_dir_with_common_prefix() -> Result<(), Box<dyn std::error::Error>> {
         let dir_path = get_resource_path(&["a_directory"]);
 
-        let mut actual =
-            completion::search_dir(format!("{}/a", dir_path.to_str().unwrap()).as_str())?;
+        let mut actual = completion::search_dir(dir_path.join("a").to_str().unwrap())?;
 
         assert_eq!(
             Some(get_resource_path(&["a_directory", "a_file"])),
@@ -103,6 +102,18 @@ mod test {
             Some(get_resource_path(&["a_directory", "another_file"])),
             actual.next()
         );
+        assert_eq!(None, actual.next());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_search_dir_with_directory() -> Result<(), Box<dyn std::error::Error>> {
+        let prefix_path = get_resource_path(&["a_directory", "directory", "a"]);
+
+        let mut actual = completion::search_dir(prefix_path.to_str().unwrap())?;
+
+        assert_eq!(Some(get_resource_path(&["a_directory", "directory", "a_child"])), actual.next());
         assert_eq!(None, actual.next());
 
         Ok(())
@@ -124,6 +135,23 @@ mod test {
         assert_eq!(Some(PathBuf::from("a_file")), actual.next());
         assert_eq!(Some(PathBuf::from("a_final_file")), actual.next());
         assert_eq!(None, actual.next());
+
+        Ok(())
+    }
+
+    #[ignore]
+    #[test]
+    fn test_search_dir_for_executable_in_cwd() -> Result<(), Box<dyn std::error::Error>> {
+        let old_cwd = env::current_dir()?;
+        let new_cwd = get_resource_path(&["a_directory", "directory"]);
+
+        env::set_current_dir(new_cwd)?;
+        let mut actual = completion::search_dir(Path::new(".").join("a").to_str().unwrap())?;
+
+        assert_eq!(Some(PathBuf::from("a_child")), actual.next());
+        assert_eq!(None, actual.next());
+
+        env::set_current_dir(old_cwd)?;
 
         Ok(())
     }

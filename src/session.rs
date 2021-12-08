@@ -60,17 +60,25 @@ fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
         let in_dir = completion::search_dir(prefix)
             .unwrap()
             .filter(|path| path.is_dir())
+            .map(|path| if prefix == "./" { // todo: this is a unix specific check (BAD)
+                PathBuf::from(".").join(path)
+            } else {
+                path
+            })
             .map(|path| path.to_string_lossy().to_string());
 
         in_dir.chain(in_path).collect()
     } else {
         completion::search_dir(prefix)
             .unwrap()
-            .map(|path| {
-                match path.file_name() {
-                    Some(base_name) => PathBuf::from(base_name),
-                    None => path,
-                }
+            .map(|path| if prefix == "./" { // todo: this is a unix specific check (BAD)
+                PathBuf::from(".").join(path)
+            } else {
+                path
+            })
+            .map(|path|
+                {
+                path
                 .to_string_lossy()
                 .to_string()
             })
@@ -81,13 +89,13 @@ fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
 /// Get a common prefix found in all string in values.dd
 ///
 /// todo: consider using a binary search rather than iteratively popping characters off the end
-fn get_common_prefix(values: &[&str]) -> Option<String> {
+fn get_common_prefix<S: AsRef<str> + Display>(values: &[S]) -> Option<String> {
     if values.as_ref().is_empty() {
         return None;
     }
 
     let prefix = values.iter().skip(1).fold(values[0].to_string(), |acc, s| {
-        if s.len() < acc.len() {
+        if s.as_ref().len() < acc.len() {
             s.to_string()
         } else {
             acc
@@ -95,10 +103,10 @@ fn get_common_prefix(values: &[&str]) -> Option<String> {
     });
     let mut prefix_len = prefix.len();
 
-    let mut is_common = values.iter().all(|s| s.starts_with(prefix.as_str()));
+    let mut is_common = values.iter().all(|s| s.as_ref().starts_with(prefix.as_str()));
 
     while ! is_common && prefix_len > 0 {
-        is_common = values.iter().all(|s| s.starts_with(&prefix[..prefix_len]));
+        is_common = values.iter().all(|s| s.as_ref().starts_with(&prefix[..prefix_len]));
         prefix_len -= 1;
     }
 
@@ -193,6 +201,8 @@ impl<'shell> Session<'shell> {
         let mut history_offset: Option<usize> = None;
         let mut buffer_bak: Option<String> = None;
 
+        let mut was_tab_hit = true;
+
         let prompt = prompt();
 
         write!(stdout, "{}{}", Save, prompt)?;
@@ -202,6 +212,7 @@ impl<'shell> Session<'shell> {
 
         // todo: implement some tab-completion (even if its just files)
         for key in stdin.keys() {
+            // todo: check if the new key is a tab
             match key.unwrap() {
                 // character deletion
                 Key::Backspace => {
@@ -303,8 +314,30 @@ impl<'shell> Session<'shell> {
 
                 // tab completion
                 Key::Char('\t') => {
-                    // todo: if multiple matches save matches and wait for second TAB
-                    // todo: is single match insert into the buffer
+                    was_tab_hit = true;
+
+                    let word_start = get_word_start(buffer.as_str(), offset);
+                    let is_command = word_start == 0;
+                    let completions = get_tab_completions(&buffer[word_start..offset], is_command);
+
+                    if completions.len() == 1 {
+                        write!(stdout, "|{:?}| {:?}..{:?} | {:?} -> {:?}", completions.len(), word_start, offset, &buffer[word_start..offset], completions[0].as_str());
+
+                        buffer.replace_range(word_start..offset, completions[0].as_str());
+                        offset = buffer.len()
+                    } else if completions.len() > 1 {
+                        if was_tab_hit { // handle previous tab hit
+                            // todo: print completions to screen
+                        } else {
+                            if let Some(common_prefix) = get_common_prefix(completions.as_slice()) {
+                                buffer.replace_range(0..offset, common_prefix.as_str());
+                                offset = buffer.len();
+                            }
+                        }
+                    }
+
+                    // stdout.flush();
+                    // std::thread::sleep(std::time::Duration::from_secs(2));
                 }
 
                 Key::Char('\n') => break,
@@ -460,10 +493,11 @@ mod tests {
         }
     }
 
+    /// these methods changes the cwd, only run with `--test-threads 1`
     mod test_get_tab_completion {
         use crate::session;
         use std::env;
-        use std::path::PathBuf;
+        use std::path::{Path, PathBuf};
 
         fn get_resource_path(components: &[&str]) -> PathBuf {
             components.iter().fold(
@@ -472,7 +506,6 @@ mod tests {
             )
         }
 
-        /// this method changes the cwd, only run with `--test-threads 1`
         #[ignore]
         #[test]
         fn test_get_tab_completion_empty_prefix() -> Result<(), Box<dyn std::error::Error>> {
@@ -611,7 +644,33 @@ mod tests {
             let actual = session::get_tab_completions("directory/", false);
             env::set_current_dir(old_cwd)?;
 
-            let expected: Vec<String> = vec![String::from("a_child")];
+            let expected: Vec<String> = vec![Path::new("directory").join("a_child").to_string_lossy().to_string()];
+
+            assert_eq!(expected, actual);
+
+            Ok(())
+        }
+
+        #[ignore]
+        #[test]
+        fn test_get_tab_completion_non_cmd_with_dot_parent() -> Result<(), Box<dyn std::error::Error>> {
+            let old_cwd = env::current_dir()?;
+            let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
+
+            let new_path = "";
+
+            env::set_var("PATH", new_path);
+
+            env::set_current_dir(new_cwd.as_path())?;
+            let actual = session::get_tab_completions("./", false);
+            env::set_current_dir(old_cwd)?;
+
+            let expected: Vec<String> = vec![
+                Path::new(".").join("a_file").to_string_lossy().to_string(),
+                Path::new(".").join("another_file").to_string_lossy().to_string(),
+                Path::new(".").join("directory").to_string_lossy().to_string(),
+                Path::new(".").join("some_other_file").to_string_lossy().to_string(),
+            ];
 
             assert_eq!(expected, actual);
 
@@ -624,7 +683,8 @@ mod tests {
 
         #[test]
         fn test_get_common_prefix_empty_iterator() {
-            let actual = session::get_common_prefix(&[]);
+            let values: &[&str] = &[];
+            let actual = session::get_common_prefix(values);
             let expected = None;
 
             assert_eq!(expected, actual);
