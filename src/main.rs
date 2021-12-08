@@ -7,12 +7,14 @@ extern crate serde_derive;
 mod builtins;
 mod history;
 mod session;
+mod error;
 
 use std::env;
 use std::io::{self, Write};
 use std::process::Command;
 
 use clap::Arg;
+use crate::error::StatusError;
 
 use crate::history::History;
 use crate::session::{Session, SessionMode};
@@ -24,7 +26,7 @@ fn prompt() -> String {
     format!("[{}] $ ", env::var("USER").unwrap())
 }
 
-fn run(command: &str, args: &[String]) -> Result<(), i32> {
+fn run(command: &str, args: &[String]) -> Result<(), StatusError> {
     let proc = Command::new(command).args(args).spawn();
 
     let code = match proc {
@@ -47,11 +49,11 @@ fn run(command: &str, args: &[String]) -> Result<(), i32> {
     if code == 0 {
         Ok(())
     } else {
-        Err(code)
+        Err(StatusError { code })
     }
 }
 
-fn wrapped_main() -> Result<(), i32> {
+fn wrapped_main() -> Result<(), StatusError> {
     let matches = app_from_crate!()
         .arg(
             Arg::with_name("cmd")
@@ -59,19 +61,26 @@ fn wrapped_main() -> Result<(), i32> {
                 .required(true)
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("is_frozen")
+                .help("freeze the session mode to 'wrapped', limiting the user's access to the system to the wrapped command and builtins")
+                .short("F")
+                .long("--frozen")
+        )
         .get_matches();
 
     let history = match History::new() {
         Ok(history) => history,
         Err(err) => {
             eprintln!("Could not establish proper history: {}", err);
-            return Err(1); // todo: we probably want to just continue with an in-memory history
+            return Err(StatusError { code: 1 }); // todo: we probably want to just continue with an in-memory history
         }
     };
 
     let base = matches.value_of("cmd").unwrap();
+    let is_frozen = matches.is_present("is_frozen");
 
-    let mut session = Session::new(history, base, SessionMode::Wrapped);
+    let mut session = Session::new(history, is_frozen, base, SessionMode::Wrapped);
 
     let mut should_continue = true;
     let mut result = Ok(());
@@ -110,7 +119,7 @@ fn wrapped_main() -> Result<(), i32> {
             "setmode" => builtins::setmode(&mut session, &argv),
             "help" => builtins::help(&argv),
             "history" => builtins::history(&mut session, &argv),
-            _ => match session.get_mode() {
+            _ => match session.mode() {
                 SessionMode::Wrapped => run(base, argv.as_slice()),
                 SessionMode::Normal => run(argv[0].as_str(), &argv[1..]),
             },
@@ -124,6 +133,6 @@ fn wrapped_main() -> Result<(), i32> {
 
 fn main() {
     if let Err(n) = wrapped_main() {
-        std::process::exit(n);
+        std::process::exit(n.code());
     }
 }
