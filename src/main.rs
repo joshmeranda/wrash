@@ -59,6 +59,12 @@ fn wrapped_main() -> Result<(), i32> {
                 .required(true)
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("is_frozen")
+                .help("freeze the session mode to 'wrapped', limiting the user's access to the system to the wrapped command and builtins")
+                .short("F")
+                .long("--frozen")
+        )
         .get_matches();
 
     let history = match History::new() {
@@ -70,8 +76,9 @@ fn wrapped_main() -> Result<(), i32> {
     };
 
     let base = matches.value_of("cmd").unwrap();
+    let is_frozen = matches.is_present("is_frozen");
 
-    let mut session = Session::new(history, base, SessionMode::Wrapped);
+    let mut session = Session::new(history, is_frozen, base, SessionMode::Wrapped);
 
     let mut should_continue = true;
     let mut result = Ok(());

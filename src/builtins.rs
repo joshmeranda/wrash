@@ -120,7 +120,7 @@ pub fn mode(session: &Session, argv: &[String]) -> BuiltinResult {
 
     let _matches = handle_matches!(app, argv);
 
-    println!("{}", session.mode);
+    println!("{}", session.get_mode());
 
     Ok(())
 }
@@ -139,9 +139,14 @@ pub fn setmode(session: &mut Session, argv: &[String]) -> BuiltinResult {
 
     let matches = handle_matches!(app, argv);
 
-    session.mode = matches.value_of("mode").unwrap().parse().unwrap();
+    let new_mode = matches.value_of("mode").unwrap().parse().unwrap();
 
-    Ok(())
+    if session.mode(new_mode).is_err() {
+        eprintln!("Error: could not set session mode, session is frozen");
+        Err(1)
+    } else {
+        Ok(())
+    }
 }
 
 /// Show help text for using the shell.
@@ -182,7 +187,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("history")
         .max_term_width(80)
-        .about("examine and manipulate the command history")
+        .about("examine and manipulate the command history, if session is frozen this command wil ALWAYS fail")
         .after_help("if no subcommand is specified, then only commands run with the same mode and base command  along with builtins are shown")
         .subcommand(
             SubCommand::with_name("sync")
@@ -206,7 +211,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
             let filter_mode = sub_matches.is_present("filter-mode");
 
             let entries = session.history_iter().filter(|entry| {
-                if filter_mode && entry.mode != session.mode {
+                if filter_mode && entry.mode != session.get_mode() {
                     return false;
                 }
 
@@ -229,7 +234,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                 .history_iter()
                 .filter(|entry| {
                     entry.is_builtin
-                        || (entry.mode == session.mode
+                        || (entry.mode == session.get_mode()
                             && (entry.base.is_none()
                                 || entry.base.as_ref().unwrap() == session.base))
                 })
