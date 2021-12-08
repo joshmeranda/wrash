@@ -64,12 +64,12 @@ impl<'shell> Session<'shell> {
         }
     }
 
-    pub fn get_mode(&self) -> SessionMode {
+    pub fn mode(&self) -> SessionMode {
         self.mode
     }
 
     // todo: return type is very non_descriptive
-    pub fn mode(&mut self, mode: SessionMode) -> Result<(), ()> {
+    pub fn set_mode(&mut self, mode: SessionMode) -> Result<(), ()> {
         if self.is_frozen {
             Err(())
         } else {
@@ -298,7 +298,7 @@ mod tests {
         // todo: allow for clean / empty history for this test to pass reliably
         let mut session = Session::new(History::new()?, true, "nonsense_command", SessionMode::Wrapped);
 
-        assert!(session.mode(SessionMode::Normal).is_err());
+        assert!(session.set_mode(SessionMode::Normal).is_err());
 
         Ok(())
     }
