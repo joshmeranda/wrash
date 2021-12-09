@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::io::{self, Write};
-use std::path::{self, Component, Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
@@ -18,14 +18,20 @@ use crate::history::{History, HistoryEntry, HistoryIterator};
 
 use crate::prompt;
 
-/// Determine if a `Path`s top level directory is the current directory (ie.
-/// `.`).
-fn is_current_directory(path: &Path) -> bool {
-    if let Some(top) = path.components().next() {
-        top == Component::CurDir
-    } else {
-        false
+/// Merge the prefix path with the completion path to restore any path
+/// component lost during processing.
+///
+/// todo: move into completions
+fn merge_prefix_with_completion(original_path: &Path, new: &Path) -> Option<PathBuf> {
+    if let Some(first) = original_path.components().next() {
+        if matches!(first, Component::CurDir) {
+            let merged: PathBuf = vec![first.as_os_str(), new.as_os_str()].iter().collect();
+
+            return Some(merged)
+        }
     }
+
+    None
 }
 
 /// Get the position in a string at which the current word begins.
@@ -42,57 +48,57 @@ fn get_word_start(buffer: &str, cursor_offset: usize) -> usize {
 }
 
 /// Get the tab completion values.
+///
+/// todo: ignore non-unicode strings
 fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
     let prefix_path = Path::new(prefix);
 
-    let has_parent = !prefix.is_empty()
-        && prefix[prefix.len() - 1..] == path::MAIN_SEPARATOR.to_string()
-        || prefix_path
-            .parent()
-            .map_or(false, |parent| !parent.as_os_str().is_empty());
+    let has_parent = if let Some(parent) = prefix_path.parent() {
+        ! parent.as_os_str().is_empty()
+    } else {
+        false
+    };
+    let has_cur_dir = if let Some(component) = prefix_path.components().next() {
+        matches!(component, Component::CurDir)
+    } else {
+        false
+    };
+
+    let in_dir = completion::search_dir(prefix)
+        .unwrap()
+        .map(|path| if let Some(merged_path) = merge_prefix_with_completion(prefix_path, path.as_path()) {
+            merged_path
+        } else {
+            path
+        });
 
     if is_command {
         // if the prefix has a parent component, search for directories or executables
         if has_parent {
-            return completion::search_dir(prefix)
-                .unwrap()
-                .filter(|path| path.executable())
-                .map(|path| format!("{}{}", prefix, path.to_string_lossy().to_string()))
-                .collect();
+            return in_dir.filter_map(|path| if path.executable() {
+                Some(path.to_string_lossy().to_string())
+            } else {
+                None
+            }).collect();
         }
 
         // if the prefix does not have a parent component, search on path or directories
         let path_var = env::var("PATH").unwrap_or_else(|_| "".to_string());
         let in_path = completion::search_path(prefix, path_var.as_str())
             .unwrap()
-            .map(|path| path.to_string_lossy().to_string());
-
-        let in_dir = completion::search_dir(prefix)
-            .unwrap()
-            .filter(|path| path.is_dir())
-            .map(|path| if is_current_directory(prefix_path) {
-                PathBuf::from(".").join(path)
+            .filter_map(|path| if ! has_cur_dir {
+                Some(path.to_string_lossy().to_string())
             } else {
-                path
-            })
-            .map(|path| path.to_string_lossy().to_string());
+                None
+            });
 
-        in_dir.chain(in_path).collect()
+        in_dir.filter_map(|path| if path.is_dir() || path.executable() && has_cur_dir {
+            Some(path.to_string_lossy().to_string())
+        } else {
+            None
+        }).chain(in_path).collect()
     } else {
-        completion::search_dir(prefix)
-            .unwrap()
-            .map(|path| if is_current_directory(prefix_path) {
-                PathBuf::from(".").join(path)
-            } else {
-                path
-            })
-            .map(|path|
-                {
-                path
-                .to_string_lossy()
-                .to_string()
-            })
-            .collect()
+        in_dir.map(|path| path.to_string_lossy().to_string()).collect()
     }
 }
 
@@ -350,8 +356,10 @@ impl<'shell> Session<'shell> {
                         }
                     }
 
-                    stdout.flush();
-                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    if !  completions.is_empty() {
+                        stdout.flush();
+                        std::thread::sleep(std::time::Duration::from_secs(1));
+                    }
                 }
 
                 Key::Char('\n') => break,
@@ -514,10 +522,7 @@ mod tests {
         use std::path::{Path, PathBuf};
 
         fn get_resource_path(components: &[&str]) -> PathBuf {
-            components.iter().fold(
-                PathBuf::from("tests").join("resources"),
-                |acc, component| acc.join(component),
-            )
+            vec!["tests", "resources"].iter().chain(components.iter()).collect()
         }
 
         #[ignore]
@@ -573,7 +578,7 @@ mod tests {
 
         #[ignore]
         #[test]
-        fn test_get_tab_completion_with_parent() -> Result<(), Box<dyn std::error::Error>> {
+        fn test_get_tab_completion_with_dot_parent() -> Result<(), Box<dyn std::error::Error>> {
             let old_cwd = env::current_dir()?;
             let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
 
@@ -598,20 +603,20 @@ mod tests {
 
         #[ignore]
         #[test]
-        fn test_get_tab_completion_with_dot_parent() -> Result<(), Box<dyn std::error::Error>> {
+        fn test_get_tab_completion_with_dot_dot_parent() -> Result<(), Box<dyn std::error::Error>> {
             let old_cwd = env::current_dir()?;
-            let new_cwd = get_resource_path(&["a_directory"]).canonicalize()?;
+            let new_cwd = get_resource_path(&["a_directory", "directory"]).canonicalize()?;
 
             let new_path = "";
 
             env::set_var("PATH", new_path);
 
             env::set_current_dir(new_cwd.as_path())?;
-            let actual = session::get_tab_completions("./a", true);
-            env::set_current_dir(old_cwd)?;
+            let actual = session::get_tab_completions("../a", true);
+            env::set_current_dir(old_cwd.as_path())?;
 
             let expected: Vec<String> = vec![
-                Path::new(".").join("a_file").to_string_lossy().to_string(),
+                Path::new("..").join("a_file").to_string_lossy().to_string(),
             ];
 
             assert_eq!(expected, actual);

@@ -1,7 +1,7 @@
 use faccess::PathExt;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
-use glob::{self, MatchOptions, PatternError};
+use glob::{self, PatternError};
 
 // todo: add common prefix finder
 // todo: handle duplicates
@@ -54,10 +54,7 @@ mod test {
     use std::path::{Path, PathBuf};
 
     fn get_resource_path(components: &[&str]) -> PathBuf {
-        components.iter().fold(
-            PathBuf::from("tests").join("resources"),
-            |acc, component| acc.join(component),
-        )
+        vec!["tests", "resources"].iter().chain(components.iter()).collect()
     }
 
     #[test]
