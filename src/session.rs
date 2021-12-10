@@ -299,6 +299,11 @@ impl<'shell> Session<'shell> {
                     offset = 0;
                 }
                 Key::Ctrl('k') => buffer.replace_range(offset.., ""),
+                Key::Ctrl('w') => {
+                    let word_start = get_word_start(buffer.as_str(), offset);
+                    buffer.replace_range(word_start..offset, "");
+                    offset = word_start;
+                }
 
                 // cursor control
                 Key::Ctrl('a') => offset = 0,
