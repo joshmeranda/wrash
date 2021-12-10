@@ -81,7 +81,7 @@ impl History {
 
             match serde_yaml::from_str(s.as_str()) {
                 Ok(history) => history,
-                Err(err) => return Err(err.to_string())
+                Err(err) => return Err(err.to_string()),
             }
         } else {
             vec![]
@@ -103,13 +103,13 @@ impl History {
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => {
                     if let Some(parent) = self.path.parent() {
-                        std::fs::create_dir_all(parent)?;
+                        fs::create_dir_all(parent)?;
                     }
 
                     File::open(self.path.as_path())?
-                },
-                _ => return Err(err)
-            }
+                }
+                _ => return Err(err),
+            },
         };
 
         write!(history_file, "{}", s)?;

@@ -5,6 +5,7 @@ extern crate clap;
 extern crate serde_derive;
 
 mod builtins;
+mod completion;
 mod history;
 mod session;
 mod error;
@@ -113,7 +114,7 @@ fn wrapped_main() -> Result<(), StatusError> {
             "exit" => {
                 should_continue = false;
                 builtins::exit(&argv)
-            },
+            }
             "cd" => builtins::cd(&argv),
             "mode" => builtins::mode(&session, &argv),
             "setmode" => builtins::setmode(&mut session, &argv),
