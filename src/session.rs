@@ -142,22 +142,35 @@ impl Display for SessionMode {
 pub struct Session<'shell> {
     history: History,
 
+    pub is_frozen: bool,
+
     pub base: &'shell str,
 
-    pub mode: SessionMode,
+    mode: SessionMode,
 }
 
 impl<'shell> Session<'shell> {
-    pub fn new(history: History, base: &'shell str, mode: SessionMode) -> Session<'shell> {
+    pub fn new(history: History, is_frozen: bool, base: &'shell str, mode: SessionMode) -> Session<'shell> {
         Session {
             history,
+            is_frozen,
             base,
             mode,
         }
     }
 
-    pub fn get_mode(&self) -> SessionMode {
+    pub fn mode(&self) -> SessionMode {
         self.mode
+    }
+
+    // todo: return type is very non_descriptive
+    pub fn set_mode(&mut self, mode: SessionMode) -> Result<(), ()> {
+        if self.is_frozen {
+            Err(())
+        } else {
+            self.mode = mode;
+            Ok(())
+        }
     }
 
     pub fn get_base(&self) -> String {
@@ -729,6 +742,20 @@ mod tests {
             let expected = None;
 
             assert_eq!(expected, actual);
+        }
+    }
+
+    mod session {
+        use crate::{History, Session, SessionMode};
+
+        #[test]
+        fn err_on_set_frozen_session() -> Result<(), Box<dyn std::error::Error>> {
+            // todo: allow for clean / empty history for this test to pass reliably
+            let mut session = Session::new(History::new()?, true, "nonsense_command", SessionMode::Wrapped);
+
+            assert!(session.set_mode(SessionMode::Normal).is_err());
+
+            Ok(())
         }
     }
 }

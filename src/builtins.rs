@@ -2,10 +2,13 @@ use std::env;
 use std::path::PathBuf;
 
 use crate::Session;
+use crate::error::StatusError;
 use clap::{Arg, ErrorKind, SubCommand};
 use directories::UserDirs;
 
-type BuiltinResult = Result<(), i32>;
+type BuiltinResult = Result<(), StatusError>;
+
+// todo: add tests for these builtins
 
 /// handle_matches is designed to allow for clean and uniform argument handling.
 macro_rules! handle_matches {
@@ -20,7 +23,7 @@ macro_rules! handle_matches {
                 _ => {
                     eprintln!("Error: {}", err);
 
-                    return Err(1);
+                    return Err(StatusError { code: 1 });
                 }
             },
             Ok(m) => m,
@@ -67,7 +70,7 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
     if code == 0 {
         Ok(())
     } else {
-        Err(code)
+        Err(StatusError { code })
     }
 }
 
@@ -98,7 +101,7 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
             None => {
                 eprintln!("could not determine the home directory for the current user");
 
-                return Err(2);
+                return Err(StatusError { code: 2 });
             }
         };
 
@@ -113,6 +116,9 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
 }
 
 /// Print the status of the current node.
+///
+/// todo: consider merging `setmode` and `mode` into one (ie `mode [MODE]`) and
+///       print the current mode if no argument is given
 pub fn mode(session: &Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("mode")
@@ -120,7 +126,7 @@ pub fn mode(session: &Session, argv: &[String]) -> BuiltinResult {
 
     let _matches = handle_matches!(app, argv);
 
-    println!("{}", session.mode);
+    println!("{}", session.mode());
 
     Ok(())
 }
@@ -139,9 +145,14 @@ pub fn setmode(session: &mut Session, argv: &[String]) -> BuiltinResult {
 
     let matches = handle_matches!(app, argv);
 
-    session.mode = matches.value_of("mode").unwrap().parse().unwrap();
+    let new_mode = matches.value_of("mode").unwrap().parse().unwrap();
 
-    Ok(())
+    if session.set_mode(new_mode).is_err() {
+        eprintln!("Error: could not set session mode, session is frozen");
+        Err(StatusError { code: 1 })
+    } else {
+        Ok(())
+    }
 }
 
 /// Show help text for using the shell.
@@ -182,7 +193,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("history")
         .max_term_width(80)
-        .about("examine and manipulate the command history")
+        .about("examine and manipulate the command history, if session is frozen this command wil ALWAYS fail")
         .after_help("if no subcommand is specified, then only commands run with the same mode and base command  along with builtins are shown")
         .subcommand(
             SubCommand::with_name("sync")
@@ -206,7 +217,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
             let filter_mode = sub_matches.is_present("filter-mode");
 
             let entries = session.history_iter().filter(|entry| {
-                if filter_mode && entry.mode != session.mode {
+                if filter_mode && entry.mode != session.mode() {
                     return false;
                 }
 
@@ -229,7 +240,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                 .history_iter()
                 .filter(|entry| {
                     entry.is_builtin
-                        || (entry.mode == session.mode
+                        || (entry.mode == session.mode()
                             && (entry.base.is_none()
                                 || entry.base.as_ref().unwrap() == session.base))
                 })
