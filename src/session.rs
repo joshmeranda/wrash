@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::io::{self, Write};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
@@ -42,11 +42,7 @@ fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
     } else {
         false
     };
-    let has_cur_dir = if let Some(component) = prefix_path.components().next() {
-        matches!(component, Component::CurDir)
-    } else {
-        false
-    };
+    let has_cur_dir = Some(Component::CurDir) == prefix_path.components().next();
 
     let in_dir = completion::search_prefix(prefix_path)
         .unwrap();
@@ -315,29 +311,20 @@ impl<'shell> Session<'shell> {
                     let is_command = word_start == 0;
                     let completions = get_tab_completions(&buffer[word_start..offset], is_command);
 
-                    if completions.len() == 1 {
-                        // write!(stdout, "|{:?}| {:?}..{:?} | {:?} -> {:?}", completions.len(), word_start, offset, &buffer[word_start..offset], completions[0].as_str());
-                        write!(stdout, " | [prefix {:?}] [completion {:?}] [word_start {:?}] {:?} -> ", &buffer[word_start..offset], completions[0].as_str(), word_start, buffer);
-
-                        buffer.replace_range(word_start..offset, completions[0].as_str());
-                        offset = buffer.len();
-
-                        write!(stdout, "{:?}|", buffer);
-
-                    } else if completions.len() > 1 {
-                        if was_tab_hit { // handle previous tab hit
-                            // todo: print completions to screen
-                        } else {
-                            if let Some(common_prefix) = get_common_prefix(completions.as_slice()) {
+                    match completions.len().cmp(&1) {
+                        Ordering::Less => { /* do nothing */ },
+                        Ordering::Equal => {
+                            buffer.replace_range(word_start..offset, completions[0].as_str());
+                            offset = buffer.len();
+                        },
+                        Ordering::Greater => {
+                            if was_tab_hit { // handle previous tab hit
+                                // todo: print completions to screen
+                            } else if let Some(common_prefix) = get_common_prefix(completions.as_slice()) {
                                 buffer.replace_range(0..offset, common_prefix.as_str());
                                 offset = buffer.len();
                             }
                         }
-                    }
-
-                    if !  completions.is_empty() {
-                        stdout.flush();
-                        std::thread::sleep(std::time::Duration::from_secs(1));
                     }
                 }
 
