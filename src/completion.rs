@@ -1,19 +1,38 @@
 use faccess::PathExt;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use glob::{self, PatternError};
 
-// todo: add common prefix finder
 // todo: handle duplicates
+
+/// Merge the prefix path with the completion path to restore any path
+/// component lost during processing.
+fn merge_prefix_with_completion(original_path: &Path, new: &Path) -> Option<PathBuf> {
+    if let Some(first) = original_path.components().next() {
+        if matches!(first, Component::CurDir) {
+            let merged: PathBuf = vec![first.as_os_str(), new.as_os_str()].iter().collect();
+
+            return Some(merged)
+        }
+    }
+
+    None
+}
 
 /// Search the file system for paths with a given prefix allowing for wildcards. The returns
 /// `pathBuf`s are normalized (meaning any `.` and `..` are stripped out.
 ///
 /// If any error is encountered while reading a file, that file is ignored.
-pub fn search_dir(prefix: &str) -> Result<impl Iterator<Item = PathBuf>, PatternError> {
-    let dir_glob = format!("{}*", prefix);
+pub fn search_prefix(prefix: &Path) -> Result<impl Iterator<Item = PathBuf>, PatternError> {
+    let prefix_path = PathBuf::from(format!("{}*", prefix.to_str().unwrap()));
 
-    Ok(glob::glob(dir_glob.as_str())?.filter_map(Result::ok))
+    Ok(glob::glob(prefix_path.to_str().unwrap())?.
+        filter_map(Result::ok)
+        .map(move |p| if let Some(merged) = merge_prefix_with_completion(prefix_path.as_path(), p.as_path()) {
+            merged
+        } else {
+            p
+        }))
 }
 
 /// Searches the directories on the system's PATH environment variable for
@@ -22,21 +41,21 @@ pub fn search_dir(prefix: &str) -> Result<impl Iterator<Item = PathBuf>, Pattern
 ///
 /// If any error is encountered while reading a file, that file is ignored.
 pub fn search_path<'a>(
-    prefix: &'a str,
+    prefix: &'a Path,
     path_val: &'a str,
 ) -> Result<impl Iterator<Item = PathBuf> + 'a, PatternError> {
     let globs = path_val
         .split(':')
         .map(move |dir: &str| {
-            let full_prefix = Path::new(dir).join(prefix).to_string_lossy().to_string();
+            let full_prefix = Path::new(dir).join(prefix);
 
             // todo: handle pattern errors
-            let found = search_dir(full_prefix.as_str())
+            let found = search_prefix(full_prefix.as_path())
                 .unwrap()
                 .into_iter()
                 .filter(|path| !path.is_dir() && path.executable())
-                .map(|path| match path.file_name() {
-                    Some(base_name) => PathBuf::from(base_name),
+                .map(|path| match path.components().last() {
+                    Some(component) => PathBuf::from(component.as_os_str()),
                     None => path,
                 });
 
@@ -49,7 +68,7 @@ pub fn search_path<'a>(
 
 #[cfg(test)]
 mod test {
-    use std::env;
+    use std::{env, path};
     use crate::completion;
     use std::path::{Path, PathBuf};
 
@@ -57,12 +76,20 @@ mod test {
         vec!["tests", "resources"].iter().chain(components.iter()).collect()
     }
 
+    fn push_trailing_slash(p: PathBuf) -> PathBuf {
+        let mut s = p.to_string_lossy().to_string();
+
+        s.push(path::MAIN_SEPARATOR);
+
+        PathBuf::from(s)
+    }
+
     #[test]
     fn test_search_dir_empty_prefix() -> Result<(), Box<dyn std::error::Error>> {
-        let dir_path = get_resource_path(&["a_directory"]);
+        let dir_path = push_trailing_slash(get_resource_path(&["a_directory"]));
 
         let mut actual =
-            completion::search_dir(format!("{}/", dir_path.to_str().unwrap()).as_str())?;
+            completion::search_prefix(dir_path.as_path())?;
 
         assert_eq!(
             Some(get_resource_path(&["a_directory", "a_file"])),
@@ -89,7 +116,7 @@ mod test {
     fn test_search_dir_with_common_prefix() -> Result<(), Box<dyn std::error::Error>> {
         let dir_path = get_resource_path(&["a_directory"]);
 
-        let mut actual = completion::search_dir(dir_path.join("a").to_str().unwrap())?;
+        let mut actual = completion::search_prefix(dir_path.join("a").as_path())?;
 
         assert_eq!(
             Some(get_resource_path(&["a_directory", "a_file"])),
@@ -108,7 +135,7 @@ mod test {
     fn test_search_dir_with_directory() -> Result<(), Box<dyn std::error::Error>> {
         let prefix_path = get_resource_path(&["a_directory", "directory", "a"]);
 
-        let mut actual = completion::search_dir(prefix_path.to_str().unwrap())?;
+        let mut actual = completion::search_prefix(prefix_path.as_path())?;
 
         assert_eq!(Some(get_resource_path(&["a_directory", "directory", "a_child"])), actual.next());
         assert_eq!(None, actual.next());
@@ -127,7 +154,7 @@ mod test {
         .collect::<Vec<&str>>()
         .join(":");
 
-        let mut actual = completion::search_path("a", new_path.as_str())?;
+        let mut actual = completion::search_path(Path::new("a"), new_path.as_str())?;
 
         assert_eq!(Some(PathBuf::from("a_file")), actual.next());
         assert_eq!(Some(PathBuf::from("a_final_file")), actual.next());
@@ -143,9 +170,9 @@ mod test {
         let new_cwd = get_resource_path(&["a_directory", "directory"]);
 
         env::set_current_dir(new_cwd)?;
-        let mut actual = completion::search_dir(Path::new(".").join("a").to_str().unwrap())?;
+        let mut actual = completion::search_prefix(Path::new(".").join("a").as_path())?;
 
-        assert_eq!(Some(PathBuf::from("a_child")), actual.next());
+        assert_eq!(Some(Path::new(".").join("a_child")), actual.next());
         assert_eq!(None, actual.next());
 
         env::set_current_dir(old_cwd)?;

@@ -18,22 +18,6 @@ use crate::history::{History, HistoryEntry, HistoryIterator};
 
 use crate::prompt;
 
-/// Merge the prefix path with the completion path to restore any path
-/// component lost during processing.
-///
-/// todo: move into completions
-fn merge_prefix_with_completion(original_path: &Path, new: &Path) -> Option<PathBuf> {
-    if let Some(first) = original_path.components().next() {
-        if matches!(first, Component::CurDir) {
-            let merged: PathBuf = vec![first.as_os_str(), new.as_os_str()].iter().collect();
-
-            return Some(merged)
-        }
-    }
-
-    None
-}
-
 /// Get the position in a string at which the current word begins.
 ///
 /// todo: handle escaped spaces (ie '\ ')
@@ -64,13 +48,8 @@ fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
         false
     };
 
-    let in_dir = completion::search_dir(prefix)
-        .unwrap()
-        .map(|path| if let Some(merged_path) = merge_prefix_with_completion(prefix_path, path.as_path()) {
-            merged_path
-        } else {
-            path
-        });
+    let in_dir = completion::search_prefix(prefix_path)
+        .unwrap();
 
     if is_command {
         // if the prefix has a parent component, search for directories or executables
@@ -84,7 +63,7 @@ fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
 
         // if the prefix does not have a parent component, search on path or directories
         let path_var = env::var("PATH").unwrap_or_else(|_| "".to_string());
-        let in_path = completion::search_path(prefix, path_var.as_str())
+        let in_path = completion::search_path(prefix_path, path_var.as_str())
             .unwrap()
             .filter_map(|path| if ! has_cur_dir {
                 Some(path.to_string_lossy().to_string())
