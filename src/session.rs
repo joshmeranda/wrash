@@ -19,13 +19,47 @@ use crate::history::{History, HistoryEntry, HistoryIterator};
 use crate::prompt;
 
 /// Get the position in a string at which the current word begins.
-///
-/// todo: handle escaped spaces (ie '\ ')
-fn get_word_start(buffer: &str, cursor_offset: usize) -> usize {
-    let mut position = cursor_offset;
+fn get_previous_boundary(buffer: &str, cursor_offset: usize) -> usize {
+    if cursor_offset == 0 {
+        return 0;
+    }
 
-    while position > 0 && buffer.chars().nth(position - 1).unwrap() != ' ' {
+    let mut chars = buffer.chars().rev();
+
+    let initial_is_boundary = chars.nth(buffer.len() - cursor_offset).unwrap() == ' ';
+
+    let mut position = cursor_offset - 1;
+
+    for c in chars {
+        if !initial_is_boundary && c == ' ' || initial_is_boundary && c != ' ' {
+            break;
+        }
+
         position -= 1;
+    }
+
+    position
+}
+
+/// Get the position of the next word.
+fn get_next_boundary(buffer: &str, cursor_offset: usize) -> usize {
+    if cursor_offset == buffer.len() {
+        return buffer.len();
+    }
+
+    let mut chars = buffer.chars();
+
+    let initial_is_boundary = chars.nth(cursor_offset).unwrap() == ' ';
+
+    let mut position = cursor_offset + 1;
+
+    for c in chars {
+        println!("=== [next c] {:?} ===", c);
+        if !initial_is_boundary && c == ' ' || initial_is_boundary && c != ' ' {
+            break;
+        }
+
+        position += 1;
     }
 
     position
@@ -300,9 +334,19 @@ impl<'shell> Session<'shell> {
                 }
                 Key::Ctrl('k') => buffer.replace_range(offset.., ""),
 
+                Key::Ctrl('w') => {
+                    let word_start = get_previous_boundary(buffer.as_str(), offset);
+                    buffer.replace_range(word_start..offset, "");
+                    offset = word_start;
+                }
+
                 // cursor control
                 Key::Ctrl('a') => offset = 0,
                 Key::Ctrl('e') => offset = buffer.len(),
+
+                // todo: change to ctrl+left && ctrl+right
+                Key::Ctrl('b') => offset = get_previous_boundary(&buffer, offset),
+                Key::Ctrl('f') => offset = get_next_boundary(&buffer, offset),
 
                 // screen control
                 // todo: write lines and scroll rather than clearing screen
@@ -320,7 +364,7 @@ impl<'shell> Session<'shell> {
                 Key::Char('\t') => {
                     was_tab_hit = true;
 
-                    let word_start = get_word_start(buffer.as_str(), offset);
+                    let word_start = get_previous_boundary(buffer.as_str(), offset);
                     let is_command = word_start == 0;
                     let completions = get_tab_completions(&buffer[word_start..offset], is_command);
 
@@ -421,76 +465,110 @@ impl Drop for Session<'_> {
 
 #[cfg(test)]
 mod tests {
-    mod test_get_word_start {
+    mod test_get_next_boundary {
         use crate::session;
 
         #[test]
-        fn get_word_start_single_from_end() {
+        fn get_next_boundary_single_from_start() {
             let buffer = "word";
-            let offset = buffer.len();
+            let offset = 0;
 
-            let expected = 0;
-            let actual = session::get_word_start(buffer, offset);
+            let expected = buffer.len();
+            let actual = session::get_next_boundary(buffer, offset);
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn get_word_start_single_from_middle() {
+        fn get_next_boundary_multiple_from_start() {
+            let buffer = "another word";
+            let offset = 0;
+
+            let expected = 7;
+            let actual = session::get_next_boundary(buffer, offset);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn get_next_boundary_multiple_from_middle() {
+            let buffer = "another word";
+            let offset = 3;
+
+            let expected = 7;
+            let actual = session::get_next_boundary(buffer, offset);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn get_next_boundary_multiple_from_end() {
+            let buffer = "another word";
+            let offset = 7;
+
+            let expected = 8;
+            let actual = session::get_next_boundary(buffer, offset);
+
+            assert_eq!(expected, actual);
+        }
+    }
+
+    mod test_get_previous_boundary {
+        use crate::session;
+
+        #[test]
+        fn get_previous_boundary_single_from_end() {
+            let buffer = "word";
+            let offset = buffer.len();
+
+            let expected = 0;
+            let actual = session::get_previous_boundary(buffer, offset);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn get_previous_boundary_single_from_middle() {
             let buffer = "word";
             let offset = buffer.len() / 2;
 
             let expected = 0;
-            let actual = session::get_word_start(buffer, offset);
+            let actual = session::get_previous_boundary(buffer, offset);
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn get_word_start_single_from_starr() {
+        fn get_previous_boundary_single_from_starr() {
             let buffer = "word";
             let offset = 0;
 
             let expected = 0;
-            let actual = session::get_word_start(buffer, offset);
+            let actual = session::get_previous_boundary(buffer, offset);
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn get_word_start_multiple_last_word() {
+        fn get_previous_boundary_multiple_last_word() {
             let buffer = "some example words";
             let offset = buffer.len();
 
             let expected = 13;
-            let actual = session::get_word_start(buffer, offset);
+            let actual = session::get_previous_boundary(buffer, offset);
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn get_word_start_multiple_last_word_from_start() {
-            let buffer = "some example words";
-            let offset = 13;
+        fn get_previous_boundary_from_next_word_start() {
+            let buffer = "some example";
+            let offset = 5;
 
-            let expected = 13;
-            let actual = session::get_word_start(buffer, offset);
+            let expected = 4;
+            let actual = session::get_previous_boundary(buffer, offset);
 
             assert_eq!(expected, actual);
-        }
-
-        #[ignore] // todo: support for escaped whitespace is not yet implemented
-        #[test]
-        fn get_word_start_escaped_space() {
-            todo!("support for escaped whitespace is not yet implemented");
-
-            // let buffer = "escaped\\ space";
-            // let offset = buffer.len();
-            //
-            // let expected = 0;
-            // let actual = session::get_word_start(buffer, offset);
-            //
-            // assert_eq!(expected, actual);
         }
     }
 
