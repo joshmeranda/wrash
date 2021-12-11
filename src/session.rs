@@ -6,7 +6,7 @@ use std::path::{Component, Path};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
-use termion::cursor::{Goto, Restore, Right, Save};
+use termion::cursor::{Goto, Restore, Right, Save, Down, Left};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
@@ -249,9 +249,11 @@ impl<'shell> Session<'shell> {
         write!(stdout, "{}", Right(1))?;
 
         // todo: implement some tab-completion (even if its just files)
-        for key in stdin.keys() {
+        for key in stdin.keys().filter_map(Result::ok) {
+            was_tab_hit &= key == Key::Char('\t');
+
             // todo: check if the new key is a tab
-            match key.unwrap() {
+            match key {
                 // character deletion
                 Key::Backspace => {
                     if offset > 0 {
@@ -376,7 +378,15 @@ impl<'shell> Session<'shell> {
                         },
                         Ordering::Greater => {
                             if was_tab_hit { // handle previous tab hit
-                                // todo: print completions to screen
+                                for c in completions.iter() {
+                                    // write!(stdout, "\n\r{}{}", Left((prompt.len() + offset) as u16), c)?;
+                                    print!("\n\r{}", c);
+                                }
+
+                                stdout.flush()?;
+
+                                buffer = String::from("");
+                                break;
                             } else if let Some(common_prefix) = get_common_prefix(completions.as_slice()) {
                                 buffer.replace_range(0..offset, common_prefix.as_str());
                                 offset = buffer.len();
