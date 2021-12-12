@@ -3,7 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
 pub struct StatusError {
-    pub code: i32
+    pub code: i32,
 }
 
 impl StatusError {
@@ -18,4 +18,4 @@ impl Display for StatusError {
     }
 }
 
-impl Error for StatusError { }
+impl Error for StatusError {}

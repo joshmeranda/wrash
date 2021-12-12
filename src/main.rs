@@ -6,16 +6,16 @@ extern crate serde_derive;
 
 mod builtins;
 mod completion;
+mod error;
 mod history;
 mod session;
-mod error;
 
 use std::env;
 use std::io::{self, Write};
 use std::process::Command;
 
-use clap::Arg;
 use crate::error::StatusError;
+use clap::Arg;
 
 use crate::history::History;
 use crate::session::{Session, SessionMode};
