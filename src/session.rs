@@ -6,7 +6,7 @@ use std::path::{Component, Path};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
-use termion::cursor::{Goto, Restore, Right, Save, Down, Left};
+use termion::cursor::{Goto, Right};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
@@ -243,12 +243,13 @@ impl<'shell> Session<'shell> {
 
         let prompt = prompt();
 
-        write!(stdout, "{}{}", Save, prompt)?;
+        write!(stdout, "{}", prompt)?;
         stdout.flush()?;
 
-        write!(stdout, "{}", Right(1))?;
+        // write!(stdout, "{}", Right(1))?;
 
         // todo: implement some tab-completion (even if its just files)
+        // todo: add support for ctrl+d && ctrl+c
         for key in stdin.keys().filter_map(Result::ok) {
             was_tab_hit &= key == Key::Char('\t');
 
@@ -354,12 +355,10 @@ impl<'shell> Session<'shell> {
                 // todo: write lines and scroll rather than clearing screen
                 Key::Ctrl('l') => write!(
                     stdout,
-                    "{}{}{}{}{}",
-                    Restore,
+                    "\r{}{}{}",
                     All,
                     Right(offset as u16),
                     Goto(1, 1),
-                    Save
                 )?,
 
                 // tab completion
@@ -379,14 +378,8 @@ impl<'shell> Session<'shell> {
                         Ordering::Greater => {
                             if was_tab_hit { // handle previous tab hit
                                 for c in completions.iter() {
-                                    // write!(stdout, "\n\r{}{}", Left((prompt.len() + offset) as u16), c)?;
-                                    print!("\n\r{}", c);
+                                    write!(stdout, "\n\r{}", c)?;
                                 }
-
-                                stdout.flush()?;
-
-                                buffer = String::from("");
-                                break;
                             } else if let Some(common_prefix) = get_common_prefix(completions.as_slice()) {
                                 buffer.replace_range(0..offset, common_prefix.as_str());
                                 offset = buffer.len();
@@ -395,7 +388,10 @@ impl<'shell> Session<'shell> {
                     }
                 }
 
-                Key::Char('\n') => break,
+                Key::Char('\n') => {
+                    writeln!(stdout, "\r")?;
+                    break;
+                },
                 Key::Char(c) => {
                     if offset == buffer.len() {
                         buffer.push(c);
@@ -409,21 +405,19 @@ impl<'shell> Session<'shell> {
                 _ => { /* do nothing */ }
             };
 
+            // todo: replace final carriage return + Right(...) with Left(...)
             write!(
                 stdout,
-                "{}{}{}{}{}{}",
-                Restore,
+                "\r{}{}{}\r{}",
                 AfterCursor,
                 prompt,
                 buffer,
-                Restore,
-                Right((prompt.len() + offset) as u16)
+                Right((prompt.len() + offset) as u16),
             )?;
 
             stdout.flush()?;
         }
 
-        writeln!(stdout, "{}", Restore)?;
         stdout.flush()?;
 
         Ok(buffer)
