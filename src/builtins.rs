@@ -1,8 +1,8 @@
 use std::env;
 use std::path::PathBuf;
 
-use crate::Session;
 use crate::error::StatusError;
+use crate::Session;
 use clap::{Arg, ErrorKind, SubCommand};
 use directories::UserDirs;
 

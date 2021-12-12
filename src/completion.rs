@@ -12,7 +12,7 @@ fn merge_prefix_with_completion(original_path: &Path, new: &Path) -> Option<Path
         if matches!(first, Component::CurDir) {
             let merged: PathBuf = vec![first.as_os_str(), new.as_os_str()].iter().collect();
 
-            return Some(merged)
+            return Some(merged);
         }
     }
 
@@ -26,12 +26,14 @@ fn merge_prefix_with_completion(original_path: &Path, new: &Path) -> Option<Path
 pub fn search_prefix(prefix: &Path) -> Result<impl Iterator<Item = PathBuf>, PatternError> {
     let prefix_path = PathBuf::from(format!("{}*", prefix.to_str().unwrap()));
 
-    Ok(glob::glob(prefix_path.to_str().unwrap())?.
-        filter_map(Result::ok)
-        .map(move |p| if let Some(merged) = merge_prefix_with_completion(prefix_path.as_path(), p.as_path()) {
-            merged
-        } else {
-            p
+    Ok(glob::glob(prefix_path.to_str().unwrap())?
+        .filter_map(Result::ok)
+        .map(move |p| {
+            if let Some(merged) = merge_prefix_with_completion(prefix_path.as_path(), p.as_path()) {
+                merged
+            } else {
+                p
+            }
         }))
 }
 
@@ -68,12 +70,15 @@ pub fn search_path<'a>(
 
 #[cfg(test)]
 mod test {
-    use std::{env, path};
     use crate::completion;
     use std::path::{Path, PathBuf};
+    use std::{env, path};
 
     fn get_resource_path(components: &[&str]) -> PathBuf {
-        vec!["tests", "resources"].iter().chain(components.iter()).collect()
+        vec!["tests", "resources"]
+            .iter()
+            .chain(components.iter())
+            .collect()
     }
 
     fn push_trailing_slash(p: PathBuf) -> PathBuf {
@@ -88,8 +93,7 @@ mod test {
     fn test_search_dir_empty_prefix() -> Result<(), Box<dyn std::error::Error>> {
         let dir_path = push_trailing_slash(get_resource_path(&["a_directory"]));
 
-        let mut actual =
-            completion::search_prefix(dir_path.as_path())?;
+        let mut actual = completion::search_prefix(dir_path.as_path())?;
 
         assert_eq!(
             Some(get_resource_path(&["a_directory", "a_file"])),
@@ -137,7 +141,10 @@ mod test {
 
         let mut actual = completion::search_prefix(prefix_path.as_path())?;
 
-        assert_eq!(Some(get_resource_path(&["a_directory", "directory", "a_child"])), actual.next());
+        assert_eq!(
+            Some(get_resource_path(&["a_directory", "directory", "a_child"])),
+            actual.next()
+        );
         assert_eq!(None, actual.next());
 
         Ok(())
