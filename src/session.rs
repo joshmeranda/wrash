@@ -239,21 +239,16 @@ impl<'shell> Session<'shell> {
         let mut history_offset: Option<usize> = None;
         let mut buffer_bak: Option<String> = None;
 
-        let mut was_tab_hit = true;
+        let mut was_tab_previous_key = false;
 
         let prompt = prompt();
 
         write!(stdout, "{}", prompt)?;
         stdout.flush()?;
 
-        // write!(stdout, "{}", Right(1))?;
-
         // todo: implement some tab-completion (even if its just files)
         // todo: add support for ctrl+d && ctrl+c
         for key in stdin.keys().filter_map(Result::ok) {
-            was_tab_hit &= key == Key::Char('\t');
-
-            // todo: check if the new key is a tab
             match key {
                 // character deletion
                 Key::Backspace => {
@@ -363,8 +358,6 @@ impl<'shell> Session<'shell> {
 
                 // tab completion
                 Key::Char('\t') => {
-                    was_tab_hit = true;
-
                     let word_start = get_previous_boundary(buffer.as_str(), offset);
                     let is_command = word_start == 0;
                     let completions = get_tab_completions(&buffer[word_start..offset], is_command);
@@ -376,7 +369,7 @@ impl<'shell> Session<'shell> {
                             offset = buffer.len();
                         },
                         Ordering::Greater => {
-                            if was_tab_hit { // handle previous tab hit
+                            if was_tab_previous_key { // handle previous tab hit
                                 for c in completions.iter() {
                                     write!(stdout, "\n\r{}", c)?;
                                 }
@@ -416,6 +409,8 @@ impl<'shell> Session<'shell> {
             )?;
 
             stdout.flush()?;
+
+            was_tab_previous_key = key == Key::Char('\t');
         }
 
         stdout.flush()?;
