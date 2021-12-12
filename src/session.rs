@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::cmp::{max, Ordering};
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::io::{self, Write};
@@ -18,6 +18,7 @@ use crate::history::{History, HistoryEntry, HistoryIterator};
 
 use crate::prompt;
 
+// todo: add support for escaped spaces
 /// Get the position in a string at which the current word begins.
 fn get_previous_boundary(buffer: &str, cursor_offset: usize) -> usize {
     if cursor_offset == 0 {
@@ -41,6 +42,7 @@ fn get_previous_boundary(buffer: &str, cursor_offset: usize) -> usize {
     position
 }
 
+// todo: add support for escaped spaces
 /// Get the position of the next word.
 fn get_next_boundary(buffer: &str, cursor_offset: usize) -> usize {
     if cursor_offset == buffer.len() {
@@ -119,6 +121,7 @@ fn get_common_prefix<S: AsRef<str> + Display>(values: &[S]) -> Option<String> {
         return None;
     }
 
+    // use value with the shortest length as the first value
     let prefix = values.iter().skip(1).fold(values[0].to_string(), |acc, s| {
         if s.as_ref().len() < acc.len() {
             s.to_string()
@@ -140,6 +143,16 @@ fn get_common_prefix<S: AsRef<str> + Display>(values: &[S]) -> Option<String> {
     } else {
         Some(prefix)
     }
+}
+
+/// Get how many entries with the given length can fit on a line with
+/// `padding_length` spaces between them.
+fn get_entries_per_line(padding_length: usize, entry_length: usize, line_length: usize) -> usize {
+    // the length of a line (L) is equal to the length of each entity (k) times
+    // the amount of entities (n) plus the length of padding (m) time the
+    // amount of entities - 1:
+    //                 L = nk + m(n - 1) -> n = (L + m) / (k + m)
+    (line_length + padding_length) / (entry_length + padding_length)
 }
 
 /// Enum describing the current session execution mode.
@@ -361,6 +374,8 @@ impl<'shell> Session<'shell> {
                     let word_start = get_previous_boundary(buffer.as_str(), offset);
                     let is_command = word_start == 0;
                     let completions = get_tab_completions(&buffer[word_start..offset], is_command);
+
+                    let max_width = completions.iter().fold(0, |acc, i| max(acc, i.len()));
 
                     match completions.len().cmp(&1) {
                         Ordering::Less => { /* do nothing */ },
@@ -776,7 +791,7 @@ mod tests {
         }
     }
 
-    mod common_prefix {
+    mod test_common_prefix {
         use crate::session;
 
         #[test]
@@ -822,7 +837,7 @@ mod tests {
         }
     }
 
-    mod session {
+    mod test_session {
         use crate::{History, Session, SessionMode};
 
         #[test]
@@ -833,6 +848,34 @@ mod tests {
             assert!(session.set_mode(SessionMode::Normal).is_err());
 
             Ok(())
+        }
+    }
+
+    mod test_get_entries_per_line {
+        use crate::session;
+
+        #[test]
+        fn test_entries_per_line_exact_fit() {
+            let actual = session::get_entries_per_line(2, 4, 10);
+            let expected = 2;
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_entries_per_line_not_enough_for_one() {
+            let actual = session::get_entries_per_line(2, 4, 1);
+            let expected = 0;
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_entries_per_line_too_much_room() {
+            let actual = session::get_entries_per_line(2, 4, 13);
+            let expected = 2;
+
+            assert_eq!(expected, actual);
         }
     }
 }
