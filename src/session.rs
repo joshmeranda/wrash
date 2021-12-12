@@ -386,6 +386,12 @@ impl<'shell> Session<'shell> {
                     write!(stdout, "\r{}{}{}", All, Right(offset as u16), Goto(1, 1),)?
                 }
 
+                // exit shell
+                Key::Ctrl('d') => {
+                    buffer = "exit".to_string();
+                    break;
+                }
+
                 // tab completion
                 Key::Char('\t') => {
                     let word_start = get_previous_boundary(buffer.as_str(), offset);
