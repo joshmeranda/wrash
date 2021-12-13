@@ -165,11 +165,11 @@ want like 'whoami' or even 'rm -rf --no-preserve-root /' then change back to
 wrapper mode 'setmode wrapper'
 
 Below is a list of supported builtins, pass '--help' to any o them for more information:
-    exit
-    cd
-    mode
-    ?
-    history"
+    exit       exit the shell with a given status code
+    cd         change the current working directory of the shell
+    mode       set or modify the current shell execution mode
+    ?          show this help text
+    history    show and filter shell command history"
     );
 
     Ok(())
