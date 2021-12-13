@@ -65,6 +65,7 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
 
     let matches = handle_matches!(app, argv);
 
+
     let code: i32 = matches.value_of("code").unwrap().parse().unwrap();
 
     if code == 0 {
@@ -242,4 +243,181 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    mod test_exit {
+        use crate::builtins;
+        use crate::error::StatusError;
+
+        #[test]
+        fn test_exit_no_arg() {
+            let expected = Ok(());
+            let actual = builtins::exit(&["exit".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_exit_zero() {
+            let expected = Ok(());
+            let actual = builtins::exit(&["0".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_exit_1() {
+            let expected = Err(StatusError { code: 1 });
+            let actual = builtins::exit(&["exit".to_string(), "1".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_exit_neg_1() {
+            let expected = Err(StatusError { code: 1 });
+            let actual = builtins::exit(&["exit".to_string(), "-1".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_exit_non_number() {
+            let expected = Err(StatusError { code: 1 });
+            let actual = builtins::exit(&["exit".to_string(), "nan".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+    }
+
+    mod test_cd {
+        use std::env;
+        use std::path::PathBuf;
+        use directories::UserDirs;
+        use crate::builtins;
+        use crate::error::StatusError;
+
+        #[test]
+        fn test_cd_destination_no_exist() -> Result<(), Box<dyn std::error::Error>> {
+            let expected = Err(StatusError { code: 1 });
+            let actual = builtins::cd(&["cd".to_string(), "no_exist".to_string()]);
+
+            assert_eq!(expected, actual);
+
+            Ok(())
+        }
+
+        #[ignore]
+        #[test]
+        fn test_cd_no_destination() -> Result<(), Box<dyn std::error::Error>> {
+            let old_cwd = env::current_dir()?;
+
+            let dirs = UserDirs::new().unwrap();
+
+            let expected = ();
+            let expected_cwd = dirs.home_dir();
+
+            let actual = builtins::cd(&["cd".to_string()])?;
+            let actual_cwd = env::current_dir().unwrap();
+
+            env::set_current_dir(old_cwd)?;
+
+            assert_eq!(expected, actual);
+
+            assert_eq!(expected_cwd, actual_cwd );
+
+            Ok(())
+        }
+
+        #[ignore]
+        #[test]
+        fn test_cd_directory() -> Result<(), Box<dyn std::error::Error>> {
+            let old_cwd = env::current_dir()?;
+
+            let expected = ();
+            let expected_cwd = PathBuf::from("./tests").canonicalize()?;
+
+            let actual = builtins::cd(&["cd".to_string(), "tests".to_string()])?;
+            let actual_cwd = env::current_dir()?;
+
+            env::set_current_dir(old_cwd)?;
+
+            assert_eq!(expected, actual);
+
+            assert_eq!(expected_cwd, actual_cwd);
+
+            Ok(())
+        }
+    }
+
+    // todo: test output to stdout
+    //   add `Writer` to session struct (handle to stdout in most case)?
+    mod test_mode {
+        use crate::builtins;
+        use crate::session::{Session, SessionMode};
+        use crate::history::History;
+        use crate::error::StatusError;
+
+        #[test]
+        fn test_get_mode_no_set() {
+            let mut session = Session::new(History::new().unwrap(), false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::mode(&mut session, &["mode".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_set_mode() {
+            let mut session = Session::new(History::new().unwrap(), false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::mode(&mut session, &["mode".to_string(), "normal".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_set_mode_to_current() {
+            let mut session = Session::new(History::new().unwrap(), false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::mode(&mut session, &["mode".to_string(), "wrapped".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_set_mode_invalid() {
+            let mut session = Session::new(History::new().unwrap(), false, "", SessionMode::Wrapped);
+
+            let expected = Err(StatusError { code: 1 });
+            let actual = builtins::mode(&mut session, &["mode".to_string(), "invalid".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_set_mode_frozen() {
+            let mut session = Session::new(History::new().unwrap(), true, "", SessionMode::Wrapped);
+
+            let expected = Err(StatusError { code: 1 });
+            let actual = builtins::mode(&mut session, &["mode".to_string(), "normal".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_set_mode_to_current_frozen() {
+            let mut session = Session::new(History::new().unwrap(), true, "", SessionMode::Wrapped);
+
+            let expected = Err(StatusError { code: 1 });
+            let actual = builtins::mode(&mut session, &["mode".to_string(), "wrapped".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+    }
 }

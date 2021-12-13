@@ -112,6 +112,7 @@ fn wrapped_main() -> Result<(), StatusError> {
 
         result = match argv[0].as_str() {
             "exit" => {
+                // todo: differentiate between successful run of exit and failed argument parsing for exit
                 should_continue = false;
                 builtins::exit(&argv)
             }
