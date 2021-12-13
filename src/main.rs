@@ -116,8 +116,7 @@ fn wrapped_main() -> Result<(), StatusError> {
                 builtins::exit(&argv)
             }
             "cd" => builtins::cd(&argv),
-            "mode" => builtins::mode(&session, &argv),
-            "setmode" => builtins::setmode(&mut session, &argv),
+            "mode" => builtins::mode(&mut session, &argv),
             "help" => builtins::help(&argv),
             "history" => builtins::history(&mut session, &argv),
             _ => match session.mode() {

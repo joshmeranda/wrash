@@ -35,7 +35,7 @@ macro_rules! handle_matches {
 pub fn is_builtin(command: &str) -> bool {
     matches!(
         command,
-        "exit" | "cd" | "mode" | "setmode" | "help" | "history"
+        "exit" | "cd" | "mode" | "help" | "history"
     )
 }
 
@@ -116,46 +116,37 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
 }
 
 /// Print the status of the current node.
-///
-/// todo: consider merging `setmode` and `mode` into one (ie `mode [MODE]`) and
-///       print the current mode if no argument is given
-pub fn mode(session: &Session, argv: &[String]) -> BuiltinResult {
+pub fn mode(session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("mode")
-        .about("get the current wrash execution mode");
-
-    let _matches = handle_matches!(app, argv);
-
-    println!("{}", session.mode());
-
-    Ok(())
-}
-
-/// Set the current shell mode.
-pub fn setmode(session: &mut Session, argv: &[String]) -> BuiltinResult {
-    let app = app_from_crate!()
-        .name("mode")
-        .about("set the wrash execution mode")
+        .about("get or set the current wrash execution mode")
         .arg(
             Arg::with_name("mode")
-                .help("the mode to set the shell to")
+                .help("if present, the mode to set the shell to")
                 .possible_values(&["wrapped", "normal"])
-                .required(true),
         );
 
     let matches = handle_matches!(app, argv);
 
-    let new_mode = matches.value_of("mode").unwrap().parse().unwrap();
+    if matches.is_present("mode") {
+        let new_mode = matches.value_of("mode").unwrap().parse().unwrap();
 
-    if session.set_mode(new_mode).is_err() {
-        eprintln!("Error: could not set session mode, session is frozen");
-        Err(StatusError { code: 1 })
+        if session.set_mode(new_mode).is_err() {
+            eprintln!("Error: could not set session mode, session is frozen");
+            Err(StatusError { code: 1 })
+        } else {
+            Ok(())
+        }
     } else {
+        println!("{}", session.mode());
+
         Ok(())
     }
 }
 
 /// Show help text for using the shell.
+///
+/// todo: change name to ? to avoid clashing with wrapped command help subcommand
 pub fn help(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("help")
@@ -166,20 +157,21 @@ pub fn help(argv: &[String]) -> BuiltinResult {
     println!(
         r"Thanks for using WraSh!
 
-WraSh is designed to provide a very minimal 'no frills' interactive wrapper
-shell around a base command. For example if the base command was 'git', you
-could call 'add -A' rather then 'git add -A'.
+WraSh is designed to provide a very minimal interactive wrapper shell around a
+base command. For example if the base command was 'git', you could call
+'add -A' rather then 'git add -A'.
 
 You may also call all the normal commands on your system with WraSh. You need
-to simply change the operation mode with 'setmode normal' run any commands you
-want like 'whoami' then change back to wrapper mode 'setmode wrapper'
+to simply change the operation mode with 'mode normal' run any commands you
+want like 'whoami' or even 'rm -rf --no-preserve-root /' then change back to
+wrapper mode 'setmode wrapper'
 
 Below is a list of supported builtins, pass '--help' to any o them for more information:
     exit
     cd
     mode
-    setmode
-    help"
+    help
+    history"
     );
 
     Ok(())

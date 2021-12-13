@@ -201,7 +201,6 @@ impl Display for SessionMode {
     }
 }
 
-// todo: ass support for frozen mode (cannot use `setmode` to change the shell session mode to normal)
 pub struct Session<'shell> {
     history: History,
 
