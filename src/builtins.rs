@@ -145,8 +145,6 @@ pub fn mode(session: &mut Session, argv: &[String]) -> BuiltinResult {
 }
 
 /// Show help text for using the shell.
-///
-/// todo: change name to ? to avoid clashing with wrapped command help subcommand
 pub fn help(argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("help")
@@ -170,7 +168,7 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
     exit
     cd
     mode
-    help
+    ?
     history"
     );
 
