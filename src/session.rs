@@ -389,6 +389,8 @@ impl<'shell> Session<'shell> {
                 }
 
                 // tab completion
+                // todo: completion overwrites entire buffer rather than being inserted
+                //       (wrapping `git`) `add src/` -> `src/main.rs`
                 Key::Char('\t') => {
                     let word_start = get_previous_boundary(buffer.as_str(), offset);
                     let is_command = word_start == 0;

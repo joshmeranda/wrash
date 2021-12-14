@@ -45,10 +45,12 @@ impl HistoryEntry {
 pub struct History {
     history: Vec<HistoryEntry>,
 
-    path: PathBuf,
+    path: Option<PathBuf>,
 }
 
 /// Provides an abstraction around the shell's previously run commands.
+///
+/// todo: add tests
 impl History {
     fn find_history_file() -> Option<PathBuf> {
         match BaseDirectories::new() {
@@ -61,16 +63,11 @@ impl History {
 
     /// Creates a new History value using $XDG_DATA_HOME/wrash/history as the
     /// history file. If the file cold not be found or read, the history is
-    /// created empty.
+    /// created empty (same as calling `History::new`).
     pub fn new() -> Result<History, String> {
-        let path = match Self::find_history_file() {
-            Some(path) => path,
-            None => {
-                return Err("could not determine a home directory for the current user".to_string())
-            }
-        };
+        let path = History::find_history_file();
 
-        let history: Vec<HistoryEntry> = if path.exists() {
+        let history = if let Some(path) = &path {
             let s = match fs::read_to_string(path.as_path()) {
                 Ok(s) => s,
                 Err(err) => {
@@ -90,23 +87,38 @@ impl History {
         Ok(Self { history, path })
     }
 
+    pub fn empty() -> History {
+        History {
+            history: vec![],
+            path: None,
+        }
+    }
+
     pub fn push(&mut self, entry: HistoryEntry) {
         self.history.push(entry);
     }
 
     /// Sync the current in-memory history with the history file.
+    ///
+    /// If the history is stored in memory only (self.path == None), this method fails with [std::io::ErrorKind::Other].
     pub fn sync(&self) -> Result<(), std::io::Error> {
+        if self.path.is_none() {
+            return Err(std::io::Error::new(std::io::ErrorKind::Other,
+                                           "no history file exists for struct instance"))
+        }
+
         let s = serde_yaml::to_string(self.history.as_slice())
             .expect("to-string should not have erred");
-        let mut history_file = match File::create(self.path.as_path()) {
+
+        let mut history_file = match File::create(self.path.as_ref().unwrap().as_path()) {
             Ok(f) => f,
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => {
-                    if let Some(parent) = self.path.parent() {
+                    if let Some(parent) = self.path.as_ref().unwrap().parent() {
                         fs::create_dir_all(parent)?;
                     }
 
-                    File::open(self.path.as_path())?
+                    File::open(self.path.as_ref().unwrap().as_path())?
                 }
                 _ => return Err(err),
             },

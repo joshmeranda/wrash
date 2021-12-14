@@ -73,8 +73,8 @@ fn wrapped_main() -> Result<(), StatusError> {
     let history = match History::new() {
         Ok(history) => history,
         Err(err) => {
-            eprintln!("Could not establish proper history: {}", err);
-            return Err(StatusError { code: 1 }); // todo: we probably want to just continue with an in-memory history
+            eprintln!("Could not establish proper history: {}\ncontinuing with in memory error (you will not be able to sync history changes", err);
+            History::empty()
         }
     };
 
