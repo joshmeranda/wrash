@@ -245,6 +245,7 @@ impl<'shell> Session<'shell> {
     ///
     /// todo: handle returning terminal mode to normal when session is in normal mode
     /// todo: consider a callback architecture to make it easier to reset tab_is_hit
+    /// todo: add trailing path::MAIN_SEPARATOR to end of completion if it is a directory
     pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();

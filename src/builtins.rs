@@ -1,9 +1,10 @@
 use std::env;
 use std::io::Write;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use crate::error::StatusError;
-use crate::Session;
+use crate::{Session, SessionMode};
 use clap::{Arg, ErrorKind, SubCommand};
 use directories::UserDirs;
 
@@ -141,7 +142,7 @@ pub fn mode(
             Ok(())
         }
     } else {
-        write!(out_writer, "{}\n", session.mode());
+        writeln!(out_writer, "{}", session.mode());
 
         Ok(())
     }
@@ -182,8 +183,8 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 ///
 /// todo: show / search commands (allow specifying offset or number)
 /// todo: allow filtering commands with regex
-/// todo: fix filtering on base and on mode (very broken not consistent), it should filter based on the given mode and base
-/// todo: add --builtin && --no-builtin
+/// todo: add From<std::io::error::Error> to StatusError || make parent wrash error which takes 'causes' sub_error
+/// todo: make --base with --mode != wrapped an error
 pub fn history(
     out_writer: &mut impl Write,
     err_writer: &mut impl Write,
@@ -200,8 +201,9 @@ pub fn history(
                 .about("flush the current in-memory history into the history file"),
         )
         .subcommand(SubCommand::with_name("filter").about("filter history to only show the command you want to see")
-            .arg(Arg::with_name("filter-mode").short("m").long("mode").takes_value(true).help("only show commands from the given shell execution mode, if no value is given the current execution mode is used"))
-            .arg(Arg::with_name("filter-base").short("b").long("base").takes_value(true).help("only show commands whose 'base' matches the given base or have no base, if no value is given the current value is used"))
+            .arg(Arg::with_name("mode-filter").short("m").long("mode").takes_value(true).help("only show commands from the given shell execution mod (only useful"))
+            .arg(Arg::with_name("base-filter").short("b").long("base").takes_value(true).help("only show commands whose 'base' matches the given base or have no base (when used with '--mode normal` you should see no history entries)"))
+            .arg(Arg::with_name("show-builtin").short("s").long("show-builtin").help("do not ignore builtins and run the same filter checks on builtins as with other commands"))
         );
 
     let matches = handle_matches!(app, argv);
@@ -213,26 +215,38 @@ pub fn history(
             }
         }
         ("filter", Some(sub_matches)) => {
-            let filter_base = sub_matches.is_present("filter-base");
-            let filter_mode = sub_matches.is_present("filter-mode");
+            let base_filter = sub_matches.value_of("base-filter");
+            let mode_filter = match sub_matches.value_of("mode-filter") {
+                Some(mode) => if let Ok(parsed) = SessionMode::from_str(mode) {
+                    Some(parsed)
+                } else {
+                    write!(err_writer, "could not parse value '{}', as SessionMode", mode);
+                    return Err(StatusError { code: 1 })
+                },
+                None => None,
+            };
+            let show_builtin = sub_matches.is_present("show-builtin");
 
-            let entries = session.history_iter().filter(|entry| {
-                if filter_mode && entry.mode != session.mode() {
-                    return false;
+            for (i, entry) in session.history_iter().filter(|entry| {
+                if entry.is_builtin && ! show_builtin {
+                    return false
                 }
 
-                if entry.base.is_some()
-                    && filter_base
-                    && entry.base.as_ref().unwrap().as_str() != session.base
-                {
-                    return false;
+                if let Some(base) = base_filter {
+                    if entry.base.is_none() || entry.base.as_ref().unwrap() != base {
+                        return false
+                    }
+                }
+
+                if let Some(mode) = mode_filter {
+                    if entry.mode != mode {
+                        return false
+                    }
                 }
 
                 true
-            });
-
-            for (i, entry) in entries.enumerate() {
-                write!(out_writer, "{}: {}\n", i, entry.get_command());
+            }).enumerate() {
+                writeln!(out_writer, "{}: {}", i, entry.get_command());
             }
         }
         _ => {
@@ -246,7 +260,7 @@ pub fn history(
                 })
                 .enumerate()
             {
-                write!(out_writer, "{}: {}\n", i, entry.get_command());
+                writeln!(out_writer, "{}: {}", i, entry.get_command());
             }
         }
     }
@@ -598,7 +612,7 @@ mod tests {
             let mut out = BufWriter::new(vec![]);
             let mut err = BufWriter::new(vec![]);
 
-            let mut history = get_history();
+            let history = get_history();
 
             let mut session = Session::new(history, false, "git", SessionMode::Wrapped);
 
@@ -659,7 +673,7 @@ mod tests {
             let mut out = BufWriter::new(vec![]);
             let mut err = BufWriter::new(vec![]);
 
-            let mut history = get_history();
+            let history = get_history();
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
@@ -669,6 +683,40 @@ mod tests {
                 &mut err,
                 &mut session,
                 &["history".to_string(), "filter".to_string()],
+            );
+
+            assert_eq!(expected, actual);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: git add -A\n1: git commit -m 'some commit message'\n2: cargo clippy\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_history_filter_show_builtins() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let history = get_history();
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut out,
+                &mut err,
+                &mut session,
+                &["history".to_string(), "filter".to_string(), "--show-builtin".to_string()],
             );
 
             assert_eq!(expected, actual);
@@ -693,7 +741,7 @@ mod tests {
             let mut out = BufWriter::new(vec![]);
             let mut err = BufWriter::new(vec![]);
 
-            let mut history = get_history();
+            let history = get_history();
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
@@ -728,11 +776,51 @@ mod tests {
         }
 
         #[test]
+        fn test_history_filter_mode_show_builtins() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let history = get_history();
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut out,
+                &mut err,
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "--mode".to_string(),
+                    "wrapped".to_string(),
+                    "--show-builtin".to_string(),
+                ],
+            );
+
+            assert_eq!(expected, actual);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: git add -A\n1: mode normal\n2: cargo clippy\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
         fn test_history_filter_invalid_mode() -> Result<(), Box<dyn std::error::Error>> {
             let mut out = BufWriter::new(vec![]);
             let mut err = BufWriter::new(vec![]);
 
-            let mut history = get_history();
+            let history = get_history();
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
@@ -758,7 +846,7 @@ mod tests {
 
             assert_eq!(expected_out, actual_out);
 
-            let expected_err = String::from("");
+            let expected_err = String::from("could not parse value 'invalid', as SessionMode");
             let actual_err = String::from_utf8(err.into_inner()?).unwrap();
 
             assert_eq!(expected_err, actual_err);
@@ -771,7 +859,7 @@ mod tests {
             let mut out = BufWriter::new(vec![]);
             let mut err = BufWriter::new(vec![]);
 
-            let mut history = get_history();
+            let history = get_history();
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
@@ -792,7 +880,130 @@ mod tests {
 
             assert_eq!(expected, actual);
 
-            let expected_out = String::from("0: mode normal\n1: git commit -m 'some commit message'\n");
+            let expected_out = String::from("0: git add -A\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_history_filter_base_show_builtins() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let history = get_history();
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut out,
+                &mut err,
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "--base".to_string(),
+                    "git".to_string(),
+                    "--show-builtin".to_string(),
+                ],
+            );
+
+            assert_eq!(expected, actual);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: git add -A\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_history_filter_base_with_filter_normal() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let history = get_history();
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut out,
+                &mut err,
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "--base".to_string(),
+                    "git".to_string(),
+                    "--mode".to_string(),
+                    "normal".to_string(),
+                ],
+            );
+
+            assert_eq!(expected, actual);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_history_filter_base_with_filter_wrapped() -> Result<(), Box<dyn std::error::Error>> {
+
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let history = get_history();
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut out,
+                &mut err,
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "--base".to_string(),
+                    "git".to_string(),
+                    "--mode".to_string(),
+                    "wrapped".to_string(),
+                ],
+            );
+
+            assert_eq!(expected, actual);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: git add -A\n");
             let actual_out = String::from_utf8(out.into_inner()?).unwrap();
 
             assert_eq!(expected_out, actual_out);
