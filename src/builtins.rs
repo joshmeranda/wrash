@@ -1,4 +1,5 @@
 use std::env;
+use std::io::Write;
 use std::path::PathBuf;
 
 use crate::error::StatusError;
@@ -113,7 +114,7 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
 }
 
 /// Print the status of the current node.
-pub fn mode(session: &mut Session, argv: &[String]) -> BuiltinResult {
+pub fn mode(out: &mut impl Write, err: &mut impl Write, session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("mode")
         .about("get or set the current wrash execution mode")
@@ -129,13 +130,13 @@ pub fn mode(session: &mut Session, argv: &[String]) -> BuiltinResult {
         let new_mode = matches.value_of("mode").unwrap().parse().unwrap();
 
         if session.set_mode(new_mode).is_err() {
-            eprintln!("Error: could not set session mode, session is frozen");
+            write!(err, "Error: could not set session mode, session is frozen");
             Err(StatusError { code: 1 })
         } else {
             Ok(())
         }
     } else {
-        println!("{}", session.mode());
+        write!(out, "{}\n", session.mode());
 
         Ok(())
     }
@@ -350,72 +351,161 @@ mod tests {
     }
 
     // todo: test output to stdout
-    //   add `Writer` to session struct (handle to stdout in most case)?
-    //   add `Writer` to command builtin arguments?
     mod test_mode {
+        use std::io::BufWriter;
         use crate::builtins;
         use crate::error::StatusError;
         use crate::history::History;
         use crate::session::{Session, SessionMode};
 
         #[test]
-        fn test_get_mode_no_set() {
+        fn test_get_mode_no_set() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
             let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
-            let actual = builtins::mode(&mut session, &["mode".to_string()]);
+            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string()]);
 
             assert_eq!(expected, actual);
+
+            let expected_out = String::from("wrapped\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
 
         #[test]
-        fn test_set_mode() {
+        fn test_set_mode() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
             let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
-            let actual = builtins::mode(&mut session, &["mode".to_string(), "normal".to_string()]);
+            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "normal".to_string()]);
 
             assert_eq!(expected, actual);
+
+            let expected_out = String::from("");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
 
         #[test]
-        fn test_set_mode_to_current() {
+        fn test_set_mode_to_current() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
             let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
-            let actual = builtins::mode(&mut session, &["mode".to_string(), "wrapped".to_string()]);
+            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "wrapped".to_string()]);
 
             assert_eq!(expected, actual);
+
+            let expected_out = String::from("");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
 
         #[test]
-        fn test_set_mode_invalid() {
+        fn test_set_mode_invalid() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
             let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
-            let actual = builtins::mode(&mut session, &["mode".to_string(), "invalid".to_string()]);
+            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "invalid".to_string()]);
 
             assert_eq!(expected, actual);
+
+            let expected_out = String::from("");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
 
         #[test]
-        fn test_set_mode_frozen() {
+        fn test_set_mode_frozen() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
             let mut session = Session::new(History::empty(), true, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
-            let actual = builtins::mode(&mut session, &["mode".to_string(), "normal".to_string()]);
+            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "normal".to_string()]);
 
             assert_eq!(expected, actual);
+
+            let expected_out = String::from("");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("Error: could not set session mode, session is frozen");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
 
         #[test]
-        fn test_set_mode_to_current_frozen() {
+        fn test_set_mode_to_current_frozen() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
             let mut session = Session::new(History::empty(), true, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
-            let actual = builtins::mode(&mut session, &["mode".to_string(), "wrapped".to_string()]);
+            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "wrapped".to_string()]);
 
             assert_eq!(expected, actual);
+
+            let expected_out = String::from("");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("Error: could not set session mode, session is frozen");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
     }
 

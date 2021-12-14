@@ -86,6 +86,9 @@ fn wrapped_main() -> Result<(), StatusError> {
     let mut should_continue = true;
     let mut result = Ok(());
 
+    let mut stdout = std::io::stdout();
+    let mut stderr = std::io::stderr();
+
     while should_continue {
         let _ = io::stdout().flush();
 
@@ -117,7 +120,7 @@ fn wrapped_main() -> Result<(), StatusError> {
                 builtins::exit(&argv)
             }
             "cd" => builtins::cd(&argv),
-            "mode" => builtins::mode(&mut session, &argv),
+            "mode" => builtins::mode(&mut stdout, &mut stderr, &mut session, &argv),
             "?" => builtins::help(&argv),
             "history" => builtins::history(&mut session, &argv),
             _ => match session.mode() {
