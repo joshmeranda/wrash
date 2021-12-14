@@ -9,7 +9,7 @@ use directories::UserDirs;
 
 type BuiltinResult = Result<(), StatusError>;
 
-// todo: add tests for these builtins
+// todo: make a builtin or runnable type?
 
 /// handle_matches is designed to allow for clean and uniform argument handling.
 macro_rules! handle_matches {
@@ -114,7 +114,12 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
 }
 
 /// Print the status of the current node.
-pub fn mode(out: &mut impl Write, err: &mut impl Write, session: &mut Session, argv: &[String]) -> BuiltinResult {
+pub fn mode(
+    out_writer: &mut impl Write,
+    err_writer: &mut impl Write,
+    session: &mut Session,
+    argv: &[String],
+) -> BuiltinResult {
     let app = app_from_crate!()
         .name("mode")
         .about("get or set the current wrash execution mode")
@@ -130,13 +135,13 @@ pub fn mode(out: &mut impl Write, err: &mut impl Write, session: &mut Session, a
         let new_mode = matches.value_of("mode").unwrap().parse().unwrap();
 
         if session.set_mode(new_mode).is_err() {
-            write!(err, "Error: could not set session mode, session is frozen");
+            write!(err_writer, "Error: could not set session mode, session is frozen");
             Err(StatusError { code: 1 })
         } else {
             Ok(())
         }
     } else {
-        write!(out, "{}\n", session.mode());
+        write!(out_writer, "{}\n", session.mode());
 
         Ok(())
     }
@@ -178,7 +183,13 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 /// todo: show / search commands (allow specifying offset or number)
 /// todo: allow filtering commands with regex
 /// todo: fix filtering on base and on mode (very broken not consistent), it should filter based on the given mode and base
-pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
+/// todo: add --builtin && --no-builtin
+pub fn history(
+    out_writer: &mut impl Write,
+    err_writer: &mut impl Write,
+    session: &mut Session,
+    argv: &[String],
+) -> BuiltinResult {
     let app = app_from_crate!()
         .name("history")
         .max_term_width(80)
@@ -198,7 +209,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
     match matches.subcommand() {
         ("sync", Some(_)) => {
             if let Err(err) = session.history_sync() {
-                eprintln!("Error saving to history file: {}", err)
+                write!(err_writer, "Error saving to history file: {}", err);
             }
         }
         ("filter", Some(sub_matches)) => {
@@ -221,7 +232,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
             });
 
             for (i, entry) in entries.enumerate() {
-                println!("{}: {}", i, entry.get_command());
+                write!(out_writer, "{}: {}\n", i, entry.get_command());
             }
         }
         _ => {
@@ -235,7 +246,7 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                 })
                 .enumerate()
             {
-                println!("{}: {}", i, entry.get_command());
+                write!(out_writer, "{}: {}\n", i, entry.get_command());
             }
         }
     }
@@ -352,11 +363,11 @@ mod tests {
 
     // todo: test output to stdout
     mod test_mode {
-        use std::io::BufWriter;
         use crate::builtins;
         use crate::error::StatusError;
         use crate::history::History;
         use crate::session::{Session, SessionMode};
+        use std::io::BufWriter;
 
         #[test]
         fn test_get_mode_no_set() -> Result<(), Box<dyn std::error::Error>> {
@@ -391,7 +402,12 @@ mod tests {
             let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
-            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "normal".to_string()]);
+            let actual = builtins::mode(
+                &mut out,
+                &mut err,
+                &mut session,
+                &["mode".to_string(), "normal".to_string()],
+            );
 
             assert_eq!(expected, actual);
 
@@ -416,7 +432,12 @@ mod tests {
             let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
-            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "wrapped".to_string()]);
+            let actual = builtins::mode(
+                &mut out,
+                &mut err,
+                &mut session,
+                &["mode".to_string(), "wrapped".to_string()],
+            );
 
             assert_eq!(expected, actual);
 
@@ -441,7 +462,12 @@ mod tests {
             let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
-            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "invalid".to_string()]);
+            let actual = builtins::mode(
+                &mut out,
+                &mut err,
+                &mut session,
+                &["mode".to_string(), "invalid".to_string()],
+            );
 
             assert_eq!(expected, actual);
 
@@ -466,7 +492,12 @@ mod tests {
             let mut session = Session::new(History::empty(), true, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
-            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "normal".to_string()]);
+            let actual = builtins::mode(
+                &mut out,
+                &mut err,
+                &mut session,
+                &["mode".to_string(), "normal".to_string()],
+            );
 
             assert_eq!(expected, actual);
 
@@ -491,7 +522,12 @@ mod tests {
             let mut session = Session::new(History::empty(), true, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
-            let actual = builtins::mode(&mut out, &mut err, &mut session, &["mode".to_string(), "wrapped".to_string()]);
+            let actual = builtins::mode(
+                &mut out,
+                &mut err,
+                &mut session,
+                &["mode".to_string(), "wrapped".to_string()],
+            );
 
             assert_eq!(expected, actual);
 
@@ -514,72 +550,157 @@ mod tests {
         use crate::error::StatusError;
         use crate::history::{History, HistoryEntry};
         use crate::session::{Session, SessionMode};
+        use std::io::BufWriter;
 
-        #[test]
-        fn test_history() {
+        fn get_history() -> History {
             let mut history = History::empty();
+
             history.push(HistoryEntry::new(
-                String::from("exit"),
+                "add -A".to_string(),
+                Some("git".to_string()),
+                SessionMode::Wrapped,
+                false,
+            ));
+
+            history.push(HistoryEntry::new(
+                "mode normal".to_string(),
                 None,
                 SessionMode::Wrapped,
                 true,
             ));
 
-            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+            history.push(HistoryEntry::new(
+                "git commit -m 'some commit message'".to_string(),
+                None,
+                SessionMode::Normal,
+                false,
+            ));
 
-            let expected = Ok(());
-            let actual = builtins::history(&mut session, &["history".to_string()]);
+            history.push(HistoryEntry::new(
+                "mode wrapped".to_string(),
+                None,
+                SessionMode::Normal,
+                true,
+            ));
 
-            assert_eq!(expected, actual);
+            history.push(HistoryEntry::new(
+                "clippy".to_string(),
+                Some("cargo".to_string()),
+                SessionMode::Wrapped,
+                false,
+            ));
+
+            history
         }
 
         #[test]
-        fn test_history_unexpected_arg() {
-            let history = History::empty();
+        fn test_history() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let mut history = get_history();
+
+            let mut session = Session::new(history, false, "git", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual =
+                builtins::history(&mut out, &mut err, &mut session, &["history".to_string()]);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: git add -A\n1: mode normal\n2: mode wrapped\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_history_unexpected_arg() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let history = get_history();
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
             let actual = builtins::history(
+                &mut out,
+                &mut err,
                 &mut session,
                 &["history".to_string(), "unexpected".to_string()],
             );
 
             assert_eq!(expected, actual);
-        }
-
-        #[test]
-        fn test_history_filter() {
-            let mut history = History::empty();
-            history.push(HistoryEntry::new(
-                String::from("exit"),
-                None,
-                SessionMode::Wrapped,
-                true,
-            ));
-
-            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
-
-            let expected = Ok(());
-            let actual =
-                builtins::history(&mut session, &["history".to_string(), "filter".to_string()]);
 
             assert_eq!(expected, actual);
+
+            let expected_out = String::from("");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
 
         #[test]
-        fn test_history_filter_mode() {
-            let mut history = History::empty();
-            history.push(HistoryEntry::new(
-                String::from("exit"),
-                None,
-                SessionMode::Wrapped,
-                true,
-            ));
+        fn test_history_filter() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let mut history = get_history();
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
             let actual = builtins::history(
+                &mut out,
+                &mut err,
+                &mut session,
+                &["history".to_string(), "filter".to_string()],
+            );
+
+            assert_eq!(expected, actual);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: git add -A\n1: mode normal\n2: git commit -m 'some commit message'\n3: mode wrapped\n4: cargo clippy\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_history_filter_mode() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let mut history = get_history();
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut out,
+                &mut err,
                 &mut session,
                 &[
                     "history".to_string(),
@@ -590,22 +711,35 @@ mod tests {
             );
 
             assert_eq!(expected, actual);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: git add -A\n1: cargo clippy\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
 
         #[test]
-        fn test_history_filter_invalid_mode() {
-            let mut history = History::empty();
-            history.push(HistoryEntry::new(
-                String::from("exit"),
-                None,
-                SessionMode::Wrapped,
-                true,
-            ));
+        fn test_history_filter_invalid_mode() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let mut history = get_history();
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
             let actual = builtins::history(
+                &mut out,
+                &mut err,
                 &mut session,
                 &[
                     "history".to_string(),
@@ -616,22 +750,35 @@ mod tests {
             );
 
             assert_eq!(expected, actual);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
 
         #[test]
-        fn test_history_filter_base() {
-            let mut history = History::empty();
-            history.push(HistoryEntry::new(
-                String::from("exit"),
-                None,
-                SessionMode::Wrapped,
-                true,
-            ));
+        fn test_history_filter_base() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let mut history = get_history();
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
             let actual = builtins::history(
+                &mut out,
+                &mut err,
                 &mut session,
                 &[
                     "history".to_string(),
@@ -642,6 +789,20 @@ mod tests {
             );
 
             assert_eq!(expected, actual);
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: mode normal\n1: git commit -m 'some commit message'\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
         }
     }
 }

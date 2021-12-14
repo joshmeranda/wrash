@@ -122,7 +122,7 @@ fn wrapped_main() -> Result<(), StatusError> {
             "cd" => builtins::cd(&argv),
             "mode" => builtins::mode(&mut stdout, &mut stderr, &mut session, &argv),
             "?" => builtins::help(&argv),
-            "history" => builtins::history(&mut session, &argv),
+            "history" => builtins::history(&mut stdout, &mut stderr, &mut session, &argv),
             _ => match session.mode() {
                 SessionMode::Wrapped => run(base, argv.as_slice()),
                 SessionMode::Normal => run(argv[0].as_str(), &argv[1..]),
