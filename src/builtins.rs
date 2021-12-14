@@ -33,10 +33,7 @@ macro_rules! handle_matches {
 
 /// Check if a command is a builtin or not.
 pub fn is_builtin(command: &str) -> bool {
-    matches!(
-        command,
-        "exit" | "cd" | "mode" | "help" | "history"
-    )
+    matches!(command, "exit" | "cd" | "mode" | "help" | "history")
 }
 
 /// Exit is a builtin for exiting out of the current shell session.
@@ -64,7 +61,6 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
         );
 
     let matches = handle_matches!(app, argv);
-
 
     let code: i32 = matches.value_of("code").unwrap().parse().unwrap();
 
@@ -124,7 +120,7 @@ pub fn mode(session: &mut Session, argv: &[String]) -> BuiltinResult {
         .arg(
             Arg::with_name("mode")
                 .help("if present, the mode to set the shell to")
-                .possible_values(&["wrapped", "normal"])
+                .possible_values(&["wrapped", "normal"]),
         );
 
     let matches = handle_matches!(app, argv);
@@ -180,6 +176,7 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 ///
 /// todo: show / search commands (allow specifying offset or number)
 /// todo: allow filtering commands with regex
+/// todo: fix filtering on base and on mode (very broken not consistent), it should filter based on the given mode and base
 pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("history")
@@ -191,8 +188,8 @@ pub fn history(session: &mut Session, argv: &[String]) -> BuiltinResult {
                 .about("flush the current in-memory history into the history file"),
         )
         .subcommand(SubCommand::with_name("filter").about("filter history to only show the command you want to see")
-            .arg(Arg::with_name("filter-mode").short("m").long("mode").min_values(0).help("only show commands from the given shell execution mode, if no value is given the current execution mode is used"))
-            .arg(Arg::with_name("filter-base").short("b").long("base").min_values(0).help("only show commands whose 'base' matches the given base or have no base, if no value is given the current value is used"))
+            .arg(Arg::with_name("filter-mode").short("m").long("mode").takes_value(true).help("only show commands from the given shell execution mode, if no value is given the current execution mode is used"))
+            .arg(Arg::with_name("filter-base").short("b").long("base").takes_value(true).help("only show commands whose 'base' matches the given base or have no base, if no value is given the current value is used"))
         );
 
     let matches = handle_matches!(app, argv);
@@ -293,11 +290,11 @@ mod tests {
     }
 
     mod test_cd {
-        use std::env;
-        use std::path::PathBuf;
-        use directories::UserDirs;
         use crate::builtins;
         use crate::error::StatusError;
+        use directories::UserDirs;
+        use std::env;
+        use std::path::PathBuf;
 
         #[test]
         fn test_cd_destination_no_exist() -> Result<(), Box<dyn std::error::Error>> {
@@ -326,7 +323,7 @@ mod tests {
 
             assert_eq!(expected, actual);
 
-            assert_eq!(expected_cwd, actual_cwd );
+            assert_eq!(expected_cwd, actual_cwd);
 
             Ok(())
         }
@@ -354,15 +351,16 @@ mod tests {
 
     // todo: test output to stdout
     //   add `Writer` to session struct (handle to stdout in most case)?
+    //   add `Writer` to command builtin arguments?
     mod test_mode {
         use crate::builtins;
-        use crate::session::{Session, SessionMode};
-        use crate::history::History;
         use crate::error::StatusError;
+        use crate::history::History;
+        use crate::session::{Session, SessionMode};
 
         #[test]
         fn test_get_mode_no_set() {
-            let mut session = Session::new(History::new().unwrap(), false, "", SessionMode::Wrapped);
+            let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
             let actual = builtins::mode(&mut session, &["mode".to_string()]);
@@ -372,7 +370,7 @@ mod tests {
 
         #[test]
         fn test_set_mode() {
-            let mut session = Session::new(History::new().unwrap(), false, "", SessionMode::Wrapped);
+            let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
             let actual = builtins::mode(&mut session, &["mode".to_string(), "normal".to_string()]);
@@ -382,7 +380,7 @@ mod tests {
 
         #[test]
         fn test_set_mode_to_current() {
-            let mut session = Session::new(History::new().unwrap(), false, "", SessionMode::Wrapped);
+            let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Ok(());
             let actual = builtins::mode(&mut session, &["mode".to_string(), "wrapped".to_string()]);
@@ -392,7 +390,7 @@ mod tests {
 
         #[test]
         fn test_set_mode_invalid() {
-            let mut session = Session::new(History::new().unwrap(), false, "", SessionMode::Wrapped);
+            let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
             let actual = builtins::mode(&mut session, &["mode".to_string(), "invalid".to_string()]);
@@ -402,7 +400,7 @@ mod tests {
 
         #[test]
         fn test_set_mode_frozen() {
-            let mut session = Session::new(History::new().unwrap(), true, "", SessionMode::Wrapped);
+            let mut session = Session::new(History::empty(), true, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
             let actual = builtins::mode(&mut session, &["mode".to_string(), "normal".to_string()]);
@@ -412,10 +410,146 @@ mod tests {
 
         #[test]
         fn test_set_mode_to_current_frozen() {
-            let mut session = Session::new(History::new().unwrap(), true, "", SessionMode::Wrapped);
+            let mut session = Session::new(History::empty(), true, "", SessionMode::Wrapped);
 
             let expected = Err(StatusError { code: 1 });
             let actual = builtins::mode(&mut session, &["mode".to_string(), "wrapped".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+    }
+
+    mod test_history {
+        use crate::builtins;
+        use crate::error::StatusError;
+        use crate::history::{History, HistoryEntry};
+        use crate::session::{Session, SessionMode};
+
+        #[test]
+        fn test_history() {
+            let mut history = History::empty();
+            history.push(HistoryEntry::new(
+                String::from("exit"),
+                None,
+                SessionMode::Wrapped,
+                true,
+            ));
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(&mut session, &["history".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_history_unexpected_arg() {
+            let history = History::empty();
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Err(StatusError { code: 1 });
+            let actual = builtins::history(
+                &mut session,
+                &["history".to_string(), "unexpected".to_string()],
+            );
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_history_filter() {
+            let mut history = History::empty();
+            history.push(HistoryEntry::new(
+                String::from("exit"),
+                None,
+                SessionMode::Wrapped,
+                true,
+            ));
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual =
+                builtins::history(&mut session, &["history".to_string(), "filter".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_history_filter_mode() {
+            let mut history = History::empty();
+            history.push(HistoryEntry::new(
+                String::from("exit"),
+                None,
+                SessionMode::Wrapped,
+                true,
+            ));
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "--mode".to_string(),
+                    "wrapped".to_string(),
+                ],
+            );
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_history_filter_invalid_mode() {
+            let mut history = History::empty();
+            history.push(HistoryEntry::new(
+                String::from("exit"),
+                None,
+                SessionMode::Wrapped,
+                true,
+            ));
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Err(StatusError { code: 1 });
+            let actual = builtins::history(
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "--mode".to_string(),
+                    "invalid".to_string(),
+                ],
+            );
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_history_filter_base() {
+            let mut history = History::empty();
+            history.push(HistoryEntry::new(
+                String::from("exit"),
+                None,
+                SessionMode::Wrapped,
+                true,
+            ));
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "--base".to_string(),
+                    "git".to_string(),
+                ],
+            );
 
             assert_eq!(expected, actual);
         }

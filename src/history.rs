@@ -103,8 +103,10 @@ impl History {
     /// If the history is stored in memory only (self.path == None), this method fails with [std::io::ErrorKind::Other].
     pub fn sync(&self) -> Result<(), std::io::Error> {
         if self.path.is_none() {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other,
-                                           "no history file exists for struct instance"))
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "no history file exists for struct instance",
+            ));
         }
 
         let s = serde_yaml::to_string(self.history.as_slice())
