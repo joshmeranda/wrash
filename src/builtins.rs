@@ -184,7 +184,6 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 /// todo: show / search commands (allow specifying offset or number)
 /// todo: allow filtering commands with regex
 /// todo: add From<std::io::error::Error> to StatusError || make parent wrash error which takes 'causes' sub_error
-/// todo: make --base with --mode != wrapped an error
 pub fn history(
     out_writer: &mut impl Write,
     err_writer: &mut impl Write,
@@ -202,7 +201,7 @@ pub fn history(
         )
         .subcommand(SubCommand::with_name("filter").about("filter history to only show the command you want to see")
             .arg(Arg::with_name("mode-filter").short("m").long("mode").takes_value(true).help("only show commands from the given shell execution mod (only useful"))
-            .arg(Arg::with_name("base-filter").short("b").long("base").takes_value(true).help("only show commands whose 'base' matches the given base or have no base (when used with '--mode normal` you should see no history entries)"))
+            .arg(Arg::with_name("base-filter").short("b").long("base").takes_value(true).help("only show commands whose 'base' matches the given base or have no base (may only be used when '--mode' is 'wrapped')"))
             .arg(Arg::with_name("show-builtin").short("s").long("show-builtin").help("do not ignore builtins and run the same filter checks on builtins as with other commands"))
         );
 
@@ -226,6 +225,11 @@ pub fn history(
                 None => None,
             };
             let show_builtin = sub_matches.is_present("show-builtin");
+
+            if base_filter.is_some() && mode_filter.is_some() && mode_filter.unwrap() != SessionMode::Wrapped {
+                write!(err_writer, "option '--base' may not be used when '--mode' is not 'wrapped'");
+                return Err(StatusError { code: 1 });
+            }
 
             for (i, entry) in session.history_iter().filter(|entry| {
                 if entry.is_builtin && ! show_builtin {
@@ -942,7 +946,7 @@ mod tests {
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
-            let expected = Ok(());
+            let expected = Err(StatusError { code: 1});
             let actual = builtins::history(
                 &mut out,
                 &mut err,
@@ -966,7 +970,7 @@ mod tests {
 
             assert_eq!(expected_out, actual_out);
 
-            let expected_err = String::from("");
+            let expected_err = String::from("option '--base' may not be used when '--mode' is not 'wrapped'");
             let actual_err = String::from_utf8(err.into_inner()?).unwrap();
 
             assert_eq!(expected_err, actual_err);
