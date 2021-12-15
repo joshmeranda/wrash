@@ -6,6 +6,7 @@ use std::str::FromStr;
 use crate::{Session, SessionMode, WrashErrorInner};
 use clap::{Arg, ErrorKind, SubCommand};
 use directories::UserDirs;
+use regex::Regex;
 
 type BuiltinResult = Result<(), WrashErrorInner>;
 
@@ -73,7 +74,9 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
 }
 
 /// CD is builtin for changing the current working directory in the shell.
-pub fn cd(argv: &[String]) -> BuiltinResult {
+pub fn cd(
+    err_writer: &mut impl Write,
+    argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("cd")
         .about("change the current working directory")
@@ -99,9 +102,12 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
         dirs.home_dir().to_path_buf()
     };
 
-    std::env::set_current_dir(target)?;
-
-    Ok(())
+    if let Err(err) = std::env::set_current_dir(target) {
+        writeln!(err_writer, "Error cahnging directory: {}", err)?;
+        Err(WrashErrorInner::FailedIo(err))
+    } else {
+        Ok(())
+    }
 }
 
 /// Print the status of the current node.
@@ -313,15 +319,22 @@ mod tests {
         use crate::error::WrashErrorInner;
         use directories::UserDirs;
         use std::env;
-        use std::io::{Error, ErrorKind};
+        use std::io::{BufWriter, Error, ErrorKind};
         use std::path::PathBuf;
 
         #[test]
         fn test_cd_destination_no_exist() -> Result<(), Box<dyn std::error::Error>> {
+            let mut err = BufWriter::new(vec![]);
+
             let expected = Err(WrashErrorInner::FailedIo(Error::new(ErrorKind::NotFound, "No such file or directory")));
-            let actual = builtins::cd(&["cd".to_string(), "no_exist".to_string()]);
+            let actual = builtins::cd(&mut err, &["cd".to_string(), "no_exist".to_string()]);
 
             assert_eq!(expected, actual);
+
+            let expected_err = String::from("Error cahnging directory: No such file or directory (os error 2)\n");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
 
             Ok(())
         }
@@ -329,6 +342,7 @@ mod tests {
         #[ignore]
         #[test]
         fn test_cd_no_destination() -> Result<(), Box<dyn std::error::Error>> {
+            let mut err = BufWriter::new(vec![]);
             let old_cwd = env::current_dir()?;
 
             let dirs = UserDirs::new().unwrap();
@@ -336,7 +350,7 @@ mod tests {
             let expected = ();
             let expected_cwd = dirs.home_dir();
 
-            let actual = builtins::cd(&["cd".to_string()])?;
+            let actual = builtins::cd(&mut err, &["cd".to_string()])?;
             let actual_cwd = env::current_dir().unwrap();
 
             env::set_current_dir(old_cwd)?;
@@ -345,18 +359,24 @@ mod tests {
 
             assert_eq!(expected_cwd, actual_cwd);
 
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
             Ok(())
         }
 
         #[ignore]
         #[test]
         fn test_cd_directory() -> Result<(), Box<dyn std::error::Error>> {
+            let mut err = BufWriter::new(vec![]);
             let old_cwd = env::current_dir()?;
 
             let expected = ();
             let expected_cwd = PathBuf::from("./tests").canonicalize()?;
 
-            let actual = builtins::cd(&["cd".to_string(), "tests".to_string()])?;
+            let actual = builtins::cd(&mut err, &["cd".to_string(), "tests".to_string()])?;
             let actual_cwd = env::current_dir()?;
 
             env::set_current_dir(old_cwd)?;
@@ -365,11 +385,15 @@ mod tests {
 
             assert_eq!(expected_cwd, actual_cwd);
 
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
             Ok(())
         }
     }
 
-    // todo: test output to stdout
     mod test_mode {
         use crate::builtins;
         use crate::error::WrashErrorInner;

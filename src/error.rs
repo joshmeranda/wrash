@@ -12,7 +12,7 @@ impl Display for WrashErrorInner {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             WrashErrorInner::NonZeroExit(n) => write!(f, "command exited with nonzero exit code '{}'", n),
-            WrashErrorInner::FailedIo(err) => write!(f, "would not write to writer: {}", err),
+            WrashErrorInner::FailedIo(err) => write!(f, "failed io operation: {}", err),
             WrashErrorInner::Custom(s) => write!(f, "{}", s),
         }
     }

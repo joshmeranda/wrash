@@ -119,7 +119,7 @@ fn wrapped_main() -> Result<(), WrashErrorInner> {
                 should_continue = false;
                 builtins::exit(&argv)
             }
-            "cd" => builtins::cd(&argv),
+            "cd" => builtins::cd(&mut stderr, &argv),
             "mode" => builtins::mode(&mut stdout, &mut stderr, &mut session, &argv),
             "?" => builtins::help(&argv),
             "history" => builtins::history(&mut stdout, &mut stderr, &mut session, &argv),
