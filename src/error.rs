@@ -18,6 +18,18 @@ impl Display for WrashErrorInner {
     }
 }
 
+impl PartialEq for WrashErrorInner {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (WrashErrorInner::NonZeroExit(left), WrashErrorInner::NonZeroExit(right)) => right == left,
+            // right now we don't care too much about the specifics of the error only that they are the right type
+            (WrashErrorInner::FailedIo(left), WrashErrorInner::FailedIo(right)) => left.kind() == right.kind(),
+            (WrashErrorInner::Custom(left), WrashErrorInner::Custom(right)) => left == right,
+            _ => false,
+            // _ => self == other
+        }
+    }
+}
 
 impl Error for WrashErrorInner {
     fn source(&self) -> Option<&(dyn Error + 'static)> {

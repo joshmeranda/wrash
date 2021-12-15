@@ -24,7 +24,7 @@ macro_rules! handle_matches {
                 _ => {
                     eprintln!("Error: {}", err);
 
-                    return Err(WrashErrorInner::NonZeroExit(2));
+                    return Err(WrashErrorInner::NonZeroExit(1));
                 }
             },
             Ok(m) => m,
@@ -80,13 +80,6 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
         .arg(
             Arg::with_name("directory")
                 .help("the directory to change into")
-                .validator(|dir| {
-                    if !PathBuf::from(dir.as_str()).is_dir() {
-                        Err(format!("no such file or directory '{}'", dir))
-                    } else {
-                        Ok(())
-                    }
-                }),
         );
 
     let matches = handle_matches!(app, argv);
@@ -106,9 +99,7 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
         dirs.home_dir().to_path_buf()
     };
 
-    if let Err(err) = std::env::set_current_dir(target) {
-        eprintln!("Error changing directories: {}", err)
-    }
+    std::env::set_current_dir(target)?;
 
     Ok(())
 }
@@ -182,7 +173,6 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 ///
 /// todo: show / search commands (allow specifying offset or number)
 /// todo: allow filtering commands with regex
-/// todo: add From<std::io::error::Error> to StatusError || make parent wrash error which takes 'causes' sub_error
 pub fn history(
     out_writer: &mut impl Write,
     err_writer: &mut impl Write,
@@ -275,7 +265,7 @@ pub fn history(
 mod tests {
     mod test_exit {
         use crate::builtins;
-        use crate::error::StatusError;
+        use crate::error::WrashErrorInner;
 
         #[test]
         fn test_exit_no_arg() {
@@ -320,14 +310,15 @@ mod tests {
 
     mod test_cd {
         use crate::builtins;
-        use crate::error::StatusError;
+        use crate::error::WrashErrorInner;
         use directories::UserDirs;
         use std::env;
+        use std::io::{Error, ErrorKind};
         use std::path::PathBuf;
 
         #[test]
         fn test_cd_destination_no_exist() -> Result<(), Box<dyn std::error::Error>> {
-            let expected = Err(WrashErrorInner::NonZeroExit(1));
+            let expected = Err(WrashErrorInner::FailedIo(Error::new(ErrorKind::NotFound, "No such file or directory")));
             let actual = builtins::cd(&["cd".to_string(), "no_exist".to_string()]);
 
             assert_eq!(expected, actual);
@@ -381,7 +372,7 @@ mod tests {
     // todo: test output to stdout
     mod test_mode {
         use crate::builtins;
-        use crate::error::StatusError;
+        use crate::error::WrashErrorInner;
         use crate::history::History;
         use crate::session::{Session, SessionMode};
         use std::io::BufWriter;
@@ -563,8 +554,8 @@ mod tests {
     }
 
     mod test_history {
-        use crate::{builtins, WrashErrorInner};
-        use crate::error::StatusError;
+        use crate::builtins;
+        use crate::error::WrashErrorInner;
         use crate::history::{History, HistoryEntry};
         use crate::session::{Session, SessionMode};
         use std::io::BufWriter;
