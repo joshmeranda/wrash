@@ -3,12 +3,11 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use crate::error::StatusError;
-use crate::{Session, SessionMode};
+use crate::{Session, SessionMode, WrashErrorInner};
 use clap::{Arg, ErrorKind, SubCommand};
 use directories::UserDirs;
 
-type BuiltinResult = Result<(), StatusError>;
+type BuiltinResult = Result<(), WrashErrorInner>;
 
 // todo: make a builtin or runnable type?
 
@@ -25,7 +24,7 @@ macro_rules! handle_matches {
                 _ => {
                     eprintln!("Error: {}", err);
 
-                    return Err(StatusError { code: 1 });
+                    return Err(WrashErrorInner::NonZeroExit(2));
                 }
             },
             Ok(m) => m,
@@ -69,7 +68,7 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
     if code == 0 {
         Ok(())
     } else {
-        Err(StatusError { code })
+        Err(WrashErrorInner::NonZeroExit(code))
     }
 }
 
@@ -100,7 +99,7 @@ pub fn cd(argv: &[String]) -> BuiltinResult {
             None => {
                 eprintln!("could not determine the home directory for the current user");
 
-                return Err(StatusError { code: 2 });
+                return Err(WrashErrorInner::NonZeroExit(2));
             }
         };
 
@@ -137,7 +136,7 @@ pub fn mode(
 
         if session.set_mode(new_mode).is_err() {
             write!(err_writer, "Error: could not set session mode, session is frozen");
-            Err(StatusError { code: 1 })
+            Err(WrashErrorInner::NonZeroExit(1))
         } else {
             Ok(())
         }
@@ -220,7 +219,7 @@ pub fn history(
                     Some(parsed)
                 } else {
                     write!(err_writer, "could not parse value '{}', as SessionMode", mode);
-                    return Err(StatusError { code: 1 })
+                    return Err(WrashErrorInner::NonZeroExit(1))
                 },
                 None => None,
             };
@@ -228,7 +227,7 @@ pub fn history(
 
             if base_filter.is_some() && mode_filter.is_some() && mode_filter.unwrap() != SessionMode::Wrapped {
                 write!(err_writer, "option '--base' may not be used when '--mode' is not 'wrapped'");
-                return Err(StatusError { code: 1 });
+                return Err(WrashErrorInner::NonZeroExit(1));
             }
 
             for (i, entry) in session.history_iter().filter(|entry| {
@@ -296,7 +295,7 @@ mod tests {
 
         #[test]
         fn test_exit_1() {
-            let expected = Err(StatusError { code: 1 });
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::exit(&["exit".to_string(), "1".to_string()]);
 
             assert_eq!(expected, actual);
@@ -304,7 +303,7 @@ mod tests {
 
         #[test]
         fn test_exit_neg_1() {
-            let expected = Err(StatusError { code: 1 });
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::exit(&["exit".to_string(), "-1".to_string()]);
 
             assert_eq!(expected, actual);
@@ -312,7 +311,7 @@ mod tests {
 
         #[test]
         fn test_exit_non_number() {
-            let expected = Err(StatusError { code: 1 });
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::exit(&["exit".to_string(), "nan".to_string()]);
 
             assert_eq!(expected, actual);
@@ -328,7 +327,7 @@ mod tests {
 
         #[test]
         fn test_cd_destination_no_exist() -> Result<(), Box<dyn std::error::Error>> {
-            let expected = Err(StatusError { code: 1 });
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::cd(&["cd".to_string(), "no_exist".to_string()]);
 
             assert_eq!(expected, actual);
@@ -479,7 +478,7 @@ mod tests {
 
             let mut session = Session::new(History::empty(), false, "", SessionMode::Wrapped);
 
-            let expected = Err(StatusError { code: 1 });
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::mode(
                 &mut out,
                 &mut err,
@@ -509,7 +508,7 @@ mod tests {
 
             let mut session = Session::new(History::empty(), true, "", SessionMode::Wrapped);
 
-            let expected = Err(StatusError { code: 1 });
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::mode(
                 &mut out,
                 &mut err,
@@ -539,7 +538,7 @@ mod tests {
 
             let mut session = Session::new(History::empty(), true, "", SessionMode::Wrapped);
 
-            let expected = Err(StatusError { code: 1 });
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::mode(
                 &mut out,
                 &mut err,
@@ -564,7 +563,7 @@ mod tests {
     }
 
     mod test_history {
-        use crate::builtins;
+        use crate::{builtins, WrashErrorInner};
         use crate::error::StatusError;
         use crate::history::{History, HistoryEntry};
         use crate::session::{Session, SessionMode};
@@ -647,7 +646,7 @@ mod tests {
             let history = get_history();
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
-            let expected = Err(StatusError { code: 1 });
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::history(
                 &mut out,
                 &mut err,
@@ -828,7 +827,7 @@ mod tests {
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
-            let expected = Err(StatusError { code: 1 });
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::history(
                 &mut out,
                 &mut err,
@@ -946,7 +945,7 @@ mod tests {
 
             let mut session = Session::new(history, false, "", SessionMode::Wrapped);
 
-            let expected = Err(StatusError { code: 1});
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
             let actual = builtins::history(
                 &mut out,
                 &mut err,

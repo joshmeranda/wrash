@@ -1,4 +1,4 @@
-use std::cmp::{max, Ordering};
+use std::cmp::{self, Ordering};
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::io::{self, Write};
@@ -407,7 +407,7 @@ impl<'shell> Session<'shell> {
                             if was_tab_previous_key {
                                 // handle previous tab hit
                                 let max_width =
-                                    completions.iter().fold(0, |acc, i| max(acc, i.len()));
+                                    completions.iter().fold(0, |acc, i| cmp::max(acc, i.len()));
                                 let entries_pre_line = get_entries_per_line(
                                     2,
                                     max_width,

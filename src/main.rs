@@ -14,7 +14,7 @@ use std::env;
 use std::io::{self, Write};
 use std::process::Command;
 
-use crate::error::StatusError;
+use crate::error::WrashErrorInner;
 use clap::Arg;
 
 use crate::history::History;
@@ -27,7 +27,7 @@ fn prompt() -> String {
     format!("[{}] $ ", env::var("USER").unwrap())
 }
 
-fn run(command: &str, args: &[String]) -> Result<(), StatusError> {
+fn run(command: &str, args: &[String]) -> Result<(), WrashErrorInner> {
     let proc = Command::new(command).args(args).spawn();
 
     let code = match proc {
@@ -50,11 +50,11 @@ fn run(command: &str, args: &[String]) -> Result<(), StatusError> {
     if code == 0 {
         Ok(())
     } else {
-        Err(StatusError { code })
+        Err(WrashErrorInner::NonZeroExit(code))
     }
 }
 
-fn wrapped_main() -> Result<(), StatusError> {
+fn wrapped_main() -> Result<(), WrashErrorInner> {
     let matches = app_from_crate!()
         .arg(
             Arg::with_name("cmd")
@@ -136,7 +136,11 @@ fn wrapped_main() -> Result<(), StatusError> {
 }
 
 fn main() {
-    if let Err(n) = wrapped_main() {
-        std::process::exit(n.code());
+    if let Err(err) = wrapped_main() {
+        match err {
+            WrashErrorInner::NonZeroExit(n) => std::process::exit(n),
+            WrashErrorInner::FailedIo(err) => eprintln!("Error: {}", err),
+            WrashErrorInner::Custom(s) => println!("Error: {}", s),
+        }
     }
 }
