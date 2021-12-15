@@ -135,13 +135,13 @@ pub fn mode(
         let new_mode = matches.value_of("mode").unwrap().parse().unwrap();
 
         if session.set_mode(new_mode).is_err() {
-            write!(err_writer, "Error: could not set session mode, session is frozen");
+            write!(err_writer, "Error: could not set session mode, session is frozen")?;
             Err(WrashErrorInner::NonZeroExit(1))
         } else {
             Ok(())
         }
     } else {
-        writeln!(out_writer, "{}", session.mode());
+        writeln!(out_writer, "{}", session.mode())?;
 
         Ok(())
     }
@@ -209,7 +209,7 @@ pub fn history(
     match matches.subcommand() {
         ("sync", Some(_)) => {
             if let Err(err) = session.history_sync() {
-                write!(err_writer, "Error saving to history file: {}", err);
+                write!(err_writer, "Error saving to history file: {}", err)?;
             }
         }
         ("filter", Some(sub_matches)) => {
@@ -218,7 +218,7 @@ pub fn history(
                 Some(mode) => if let Ok(parsed) = SessionMode::from_str(mode) {
                     Some(parsed)
                 } else {
-                    write!(err_writer, "could not parse value '{}', as SessionMode", mode);
+                    write!(err_writer, "could not parse value '{}', as SessionMode", mode)?;
                     return Err(WrashErrorInner::NonZeroExit(1))
                 },
                 None => None,
@@ -226,7 +226,7 @@ pub fn history(
             let show_builtin = sub_matches.is_present("show-builtin");
 
             if base_filter.is_some() && mode_filter.is_some() && mode_filter.unwrap() != SessionMode::Wrapped {
-                write!(err_writer, "option '--base' may not be used when '--mode' is not 'wrapped'");
+                write!(err_writer, "option '--base' may not be used when '--mode' is not 'wrapped'")?;
                 return Err(WrashErrorInner::NonZeroExit(1));
             }
 
@@ -249,7 +249,7 @@ pub fn history(
 
                 true
             }).enumerate() {
-                writeln!(out_writer, "{}: {}", i, entry.get_command());
+                writeln!(out_writer, "{}: {}", i, entry.get_command())?;
             }
         }
         _ => {
@@ -263,7 +263,7 @@ pub fn history(
                 })
                 .enumerate()
             {
-                writeln!(out_writer, "{}: {}", i, entry.get_command());
+                writeln!(out_writer, "{}: {}", i, entry.get_command())?;
             }
         }
     }
