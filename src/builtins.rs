@@ -176,9 +176,6 @@ Below is a list of supported builtins, pass '--help' to any o them for more info
 }
 
 /// Examine and manipulate the command history, if the command was run in "wrapped" mode,
-///
-/// todo: show / search commands (allow specifying offset or number)
-/// todo: allow filtering commands with regex
 pub fn history(
     out_writer: &mut impl Write,
     err_writer: &mut impl Write,
@@ -198,6 +195,7 @@ pub fn history(
             .arg(Arg::with_name("mode-filter").short("m").long("mode").takes_value(true).help("only show commands from the given shell execution mod (only useful"))
             .arg(Arg::with_name("base-filter").short("b").long("base").takes_value(true).help("only show commands whose 'base' matches the given base or have no base (may only be used when '--mode' is 'wrapped')"))
             .arg(Arg::with_name("show-builtin").short("s").long("show-builtin").help("do not ignore builtins and run the same filter checks on builtins as with other commands"))
+            .arg(Arg::with_name("pattern").help("the optional regex pattern to search"))
         );
 
     let matches = handle_matches!(app, argv);
@@ -221,6 +219,18 @@ pub fn history(
             };
             let show_builtin = sub_matches.is_present("show-builtin");
 
+            let pattern = if let Some(s) = sub_matches.value_of("pattern") {
+                match Regex::new(s) {
+                    Ok(r) => Some(r),
+                    Err(_) => {
+                        write!(err_writer, "invalid regex pattern '{}'", s)?;
+                        return Err(WrashErrorInner::NonZeroExit(1))
+                    }
+                }
+            } else {
+                None
+            };
+
             if base_filter.is_some() && mode_filter.is_some() && mode_filter.unwrap() != SessionMode::Wrapped {
                 write!(err_writer, "option '--base' may not be used when '--mode' is not 'wrapped'")?;
                 return Err(WrashErrorInner::NonZeroExit(1));
@@ -243,7 +253,11 @@ pub fn history(
                     }
                 }
 
-                true
+                if let Some(pattern) = &pattern {
+                    pattern.is_match(entry.get_command().as_str())
+                } else {
+                    true
+                }
             }).enumerate() {
                 writeln!(out_writer, "{}: {}", i, entry.get_command())?;
             }
@@ -671,8 +685,6 @@ mod tests {
 
             assert_eq!(expected, actual);
 
-            assert_eq!(expected, actual);
-
             let expected_out = String::from("");
             let actual_out = String::from_utf8(out.into_inner()?).unwrap();
 
@@ -705,8 +717,6 @@ mod tests {
 
             assert_eq!(expected, actual);
 
-            assert_eq!(expected, actual);
-
             let expected_out = String::from("0: git add -A\n1: git commit -m 'some commit message'\n2: cargo clippy\n");
             let actual_out = String::from_utf8(out.into_inner()?).unwrap();
 
@@ -736,8 +746,6 @@ mod tests {
                 &mut session,
                 &["history".to_string(), "filter".to_string(), "--show-builtin".to_string()],
             );
-
-            assert_eq!(expected, actual);
 
             assert_eq!(expected, actual);
 
@@ -775,8 +783,6 @@ mod tests {
                     "wrapped".to_string(),
                 ],
             );
-
-            assert_eq!(expected, actual);
 
             assert_eq!(expected, actual);
 
@@ -818,8 +824,6 @@ mod tests {
 
             assert_eq!(expected, actual);
 
-            assert_eq!(expected, actual);
-
             let expected_out = String::from("0: git add -A\n1: mode normal\n2: cargo clippy\n");
             let actual_out = String::from_utf8(out.into_inner()?).unwrap();
 
@@ -854,8 +858,6 @@ mod tests {
                     "invalid".to_string(),
                 ],
             );
-
-            assert_eq!(expected, actual);
 
             assert_eq!(expected, actual);
 
@@ -896,8 +898,6 @@ mod tests {
 
             assert_eq!(expected, actual);
 
-            assert_eq!(expected, actual);
-
             let expected_out = String::from("0: git add -A\n");
             let actual_out = String::from_utf8(out.into_inner()?).unwrap();
 
@@ -933,8 +933,6 @@ mod tests {
                     "--show-builtin".to_string(),
                 ],
             );
-
-            assert_eq!(expected, actual);
 
             assert_eq!(expected, actual);
 
@@ -977,8 +975,6 @@ mod tests {
 
             assert_eq!(expected, actual);
 
-            assert_eq!(expected, actual);
-
             let expected_out = String::from("");
             let actual_out = String::from_utf8(out.into_inner()?).unwrap();
 
@@ -994,7 +990,6 @@ mod tests {
 
         #[test]
         fn test_history_filter_base_with_filter_wrapped() -> Result<(), Box<dyn std::error::Error>> {
-
             let mut out = BufWriter::new(vec![]);
             let mut err = BufWriter::new(vec![]);
 
@@ -1019,9 +1014,115 @@ mod tests {
 
             assert_eq!(expected, actual);
 
+            let expected_out = String::from("0: git add -A\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_history_filter_invalid_regex() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let history = get_history();
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Err(WrashErrorInner::NonZeroExit(1));
+            let actual = builtins::history(
+                &mut out,
+                &mut err,
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "i have an unclosed brace [".to_string(),
+                ],
+            );
+
             assert_eq!(expected, actual);
 
-            let expected_out = String::from("0: git add -A\n");
+            let expected_out = String::from("");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("invalid regex pattern 'i have an unclosed brace ['");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_history_filter_regex_contains_git() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let history = get_history();
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut out,
+                &mut err,
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "git".to_string(),
+                ],
+            );
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: git add -A\n1: git commit -m 'some commit message'\n");
+            let actual_out = String::from_utf8(out.into_inner()?).unwrap();
+
+            assert_eq!(expected_out, actual_out);
+
+            let expected_err = String::from("");
+            let actual_err = String::from_utf8(err.into_inner()?).unwrap();
+
+            assert_eq!(expected_err, actual_err);
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_history_filter_regex_no_middle() -> Result<(), Box<dyn std::error::Error>> {
+            let mut out = BufWriter::new(vec![]);
+            let mut err = BufWriter::new(vec![]);
+
+            let history = get_history();
+
+            let mut session = Session::new(history, false, "", SessionMode::Wrapped);
+
+            let expected = Ok(());
+            let actual = builtins::history(
+                &mut out,
+                &mut err,
+                &mut session,
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "car.*ppy".to_string(),
+                ],
+            );
+
+            assert_eq!(expected, actual);
+
+            let expected_out = String::from("0: cargo clippy\n");
             let actual_out = String::from_utf8(out.into_inner()?).unwrap();
 
             assert_eq!(expected_out, actual_out);
