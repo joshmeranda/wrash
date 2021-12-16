@@ -43,15 +43,15 @@ impl HistoryEntry {
     }
 }
 
+#[derive(PartialEq, Debug)]
 pub struct History {
     history: Vec<HistoryEntry>,
 
+    // ideally would  be an &Path rather than PathBuf
     path: Option<PathBuf>,
 }
 
 /// Provides an abstraction around the shell's previously run commands.
-///
-/// todo: add tests
 impl History {
     fn find_history_file() -> Option<PathBuf> {
         match BaseDirectories::new() {
@@ -81,9 +81,13 @@ impl History {
             }
         };
 
-        let history = match serde_yaml::from_str(s.as_str()) {
-            Ok(history) => history,
-            Err(err) => return Err(WrashErrorInner::Custom(err.to_string())),
+        let history = if s.is_empty() {
+            vec![]
+        } else {
+            match serde_yaml::from_str(s.as_str()) {
+                Ok(history) => history,
+                Err(err) => return Err(WrashErrorInner::Custom(err.to_string())),
+            }
         };
 
         Ok(Self { history, path: Some(path) })
@@ -185,5 +189,111 @@ impl Drop for History {
                 err
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::fs::read_to_string;
+    use std::io::Write;
+    use std::path::PathBuf;
+    use tempfile::NamedTempFile;
+    use crate::{History, SessionMode, WrashErrorInner};
+    use crate::history::HistoryEntry;
+
+    fn get_resource_path(components: &[&str]) -> PathBuf {
+        vec!["tests", "resources"]
+            .iter()
+            .chain(components.iter())
+            .collect()
+    }
+
+    #[test]
+    fn test_with_file() -> Result<(), Box<dyn std::error::Error>> {
+        let history_path = get_resource_path(&["history", "history.yaml"]);
+
+        let expected = History {
+            history: vec![
+                HistoryEntry::new(
+                    "subcmd -arg 1 -arg 2".to_string(),
+                    Some("cmd".to_string()),
+                    SessionMode::Wrapped,
+                    false),
+                HistoryEntry::new(
+                    "othersubcmd --verbose ARG".to_string(),
+                    None,
+                    SessionMode::Normal,
+                    false),
+                HistoryEntry::new(
+                    "mode".to_string(),
+                    None,
+                    SessionMode::Wrapped,
+                    true),
+            ],
+            path: Some(history_path.clone()),
+        };
+        let actual = History::with_file(history_path)?;
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_with_file_no_exist() -> Result<(), Box<dyn std::error::Error>> {
+        let history_path = get_resource_path(&["history", "i do not exist"]);
+
+        let expected = Err(WrashErrorInner::FailedIo(std::io::Error::new(std::io::ErrorKind::NotFound, "")));
+        let actual = History::with_file(history_path);
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_with_file_bad_syntax() -> Result<(), Box<dyn std::error::Error>> {
+        let history_path = get_resource_path(&["history", "history.invalid.yaml"]);
+
+        let expected = Err(WrashErrorInner::Custom(".[0].is_builtin: invalid type: string \"false,\", expected a boolean at line 3 column 15".to_string()));
+        let actual = History::with_file(history_path);
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_drop() -> Result<(), Box<dyn std::error::Error>> {
+        let mut temp = NamedTempFile::new()?;
+        let path = temp.path().to_path_buf();
+        let mut file = temp.as_file();
+
+        write!(file, "")?;
+
+        {
+            let mut history = History::with_file(path.clone())?;
+
+            history.push(HistoryEntry::new(
+                "subcmd -arg 1 -arg 2".to_string(),
+                Some("cmd".to_string()),
+                SessionMode::Wrapped,
+                false)
+            )
+        }
+
+        let expected =concat!(
+            "---\n",
+            "- argv: subcmd -arg 1 -arg 2\n",
+            "  base: cmd\n",
+            "  mode: Wrapped\n",
+            "  is_builtin: false\n",
+        );
+
+        let actual = read_to_string(path)?;
+
+        assert_eq!(expected, actual);
+
+        Ok(())
     }
 }

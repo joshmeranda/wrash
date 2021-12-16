@@ -1,0 +1,13 @@
+---
+- argv: subcmd -arg 1 -arg 2
+  base: cmd
+  mode: Wrapped
+  is_builtin: false
+- argv: othersubcmd --verbose ARG
+  base: ~
+  mode: Normal
+  is_builtin: false
+- argv: mode
+  base: ~
+  mode: Wrapped
+  is_builtin: true
