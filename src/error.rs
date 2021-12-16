@@ -2,52 +2,52 @@ use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug)]
-pub enum WrashErrorInner {
+pub enum WrashError {
     NonZeroExit(i32),
     FailedIo(std::io::Error),
     Custom(String),
 }
 
-impl Display for WrashErrorInner {
+impl Display for WrashError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            WrashErrorInner::NonZeroExit(n) => write!(f, "command exited with nonzero exit code '{}'", n),
-            WrashErrorInner::FailedIo(err) => write!(f, "failed io operation: {}", err),
-            WrashErrorInner::Custom(s) => write!(f, "{}", s),
+            WrashError::NonZeroExit(n) => write!(f, "command exited with nonzero exit code '{}'", n),
+            WrashError::FailedIo(err) => write!(f, "failed io operation: {}", err),
+            WrashError::Custom(s) => write!(f, "{}", s),
         }
     }
 }
 
-impl PartialEq for WrashErrorInner {
+impl PartialEq for WrashError {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (WrashErrorInner::NonZeroExit(left), WrashErrorInner::NonZeroExit(right)) => right == left,
+            (WrashError::NonZeroExit(left), WrashError::NonZeroExit(right)) => right == left,
             // right now we don't care too much about the specifics of the error only that they are the right type
-            (WrashErrorInner::FailedIo(left), WrashErrorInner::FailedIo(right)) => left.kind() == right.kind(),
-            (WrashErrorInner::Custom(left), WrashErrorInner::Custom(right)) => left == right,
+            (WrashError::FailedIo(left), WrashError::FailedIo(right)) => left.kind() == right.kind(),
+            (WrashError::Custom(left), WrashError::Custom(right)) => left == right,
             _ => false,
             // _ => self == other
         }
     }
 }
 
-impl Error for WrashErrorInner {
+impl Error for WrashError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            WrashErrorInner::FailedIo(err) => Some(err),
+            WrashError::FailedIo(err) => Some(err),
             _ => None
         }
     }
 }
 
-impl From<i32> for WrashErrorInner {
-    fn from(n: i32) -> Self { WrashErrorInner::NonZeroExit(n) }
+impl From<i32> for WrashError {
+    fn from(n: i32) -> Self { WrashError::NonZeroExit(n) }
 }
 
-impl From<std::io::Error> for WrashErrorInner {
-    fn from(err: std::io::Error) -> Self { WrashErrorInner::FailedIo(err) }
+impl From<std::io::Error> for WrashError {
+    fn from(err: std::io::Error) -> Self { WrashError::FailedIo(err) }
 }
 
-impl From<String> for WrashErrorInner {
-    fn from(s: String) -> Self { WrashErrorInner::Custom(s) }
+impl From<String> for WrashError {
+    fn from(s: String) -> Self { WrashError::Custom(s) }
 }

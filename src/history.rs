@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use xdg::BaseDirectories;
 
 use crate::session::SessionMode;
-use crate::WrashErrorInner;
+use crate::WrashError;
 
 /// A single entry into history, providing the command run and some meta-data
 /// describing it.
@@ -65,19 +65,19 @@ impl History {
     /// Creates a new History value using $XDG_DATA_HOME/wrash/history as the
     /// history file. If the file cold not be found or read, the history is
     /// created empty (same as calling `History::new`).
-    pub fn new() -> Result<History, WrashErrorInner> {
+    pub fn new() -> Result<History, WrashError> {
         match History::find_history_file() {
             Some(path) => History::with_file(path),
-            None => Err(WrashErrorInner::FailedIo(std::io::Error::new(std::io::ErrorKind::Other, "could not find the user's history file"))),
+            None => Err(WrashError::FailedIo(std::io::Error::new(std::io::ErrorKind::Other, "could not find the user's history file"))),
         }
     }
 
-    fn with_file(path: PathBuf) -> Result<History, WrashErrorInner> {
+    fn with_file(path: PathBuf) -> Result<History, WrashError> {
         let s = match fs::read_to_string(path.as_path()) {
             Ok(s) => s,
             Err(err) => {
                 eprintln!("Error: could not read file: {}", err);
-                return Err(WrashErrorInner::FailedIo(err));
+                return Err(WrashError::FailedIo(err));
             }
         };
 
@@ -86,7 +86,7 @@ impl History {
         } else {
             match serde_yaml::from_str(s.as_str()) {
                 Ok(history) => history,
-                Err(err) => return Err(WrashErrorInner::Custom(err.to_string())),
+                Err(err) => return Err(WrashError::Custom(err.to_string())),
             }
         };
 
@@ -108,9 +108,9 @@ impl History {
     ///
     /// If the history is stored in memory only (self.path == None), this
     /// method returns an error.
-    pub fn sync(&self) -> Result<(), WrashErrorInner> {
+    pub fn sync(&self) -> Result<(), WrashError> {
         if self.path.is_none() {
-            return Err(WrashErrorInner::FailedIo(std::io::Error::new(
+            return Err(WrashError::FailedIo(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "no history file exists for struct instance",
             )));
@@ -129,7 +129,7 @@ impl History {
 
                     File::open(self.path.as_ref().unwrap().as_path())?
                 }
-                _ => return Err(WrashErrorInner::FailedIo(err)),
+                _ => return Err(WrashError::FailedIo(err)),
             },
         };
 
@@ -198,7 +198,7 @@ mod test {
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
-    use crate::{History, SessionMode, WrashErrorInner};
+    use crate::{History, SessionMode, WrashError};
     use crate::history::HistoryEntry;
 
     fn get_resource_path(components: &[&str]) -> PathBuf {
@@ -243,7 +243,7 @@ mod test {
     fn test_with_file_no_exist() -> Result<(), Box<dyn std::error::Error>> {
         let history_path = get_resource_path(&["history", "i do not exist"]);
 
-        let expected = Err(WrashErrorInner::FailedIo(std::io::Error::new(std::io::ErrorKind::NotFound, "")));
+        let expected = Err(WrashError::FailedIo(std::io::Error::new(std::io::ErrorKind::NotFound, "")));
         let actual = History::with_file(history_path);
 
         assert_eq!(expected, actual);
@@ -255,7 +255,7 @@ mod test {
     fn test_with_file_bad_syntax() -> Result<(), Box<dyn std::error::Error>> {
         let history_path = get_resource_path(&["history", "history.invalid.yaml"]);
 
-        let expected = Err(WrashErrorInner::Custom(".[0].is_builtin: invalid type: string \"false,\", expected a boolean at line 3 column 15".to_string()));
+        let expected = Err(WrashError::Custom(".[0].is_builtin: invalid type: string \"false,\", expected a boolean at line 3 column 15".to_string()));
         let actual = History::with_file(history_path);
 
         assert_eq!(expected, actual);
@@ -265,7 +265,7 @@ mod test {
 
     #[test]
     fn test_file_drop() -> Result<(), Box<dyn std::error::Error>> {
-        let mut temp = NamedTempFile::new()?;
+        let temp = NamedTempFile::new()?;
         let path = temp.path().to_path_buf();
         let mut file = temp.as_file();
 

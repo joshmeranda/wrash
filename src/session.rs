@@ -13,7 +13,7 @@ use termion::raw::IntoRawMode;
 
 use faccess::PathExt;
 
-use crate::{completion, WrashErrorInner};
+use crate::{completion, WrashError};
 use crate::history::{History, HistoryEntry, HistoryIterator};
 
 use crate::prompt;
@@ -496,7 +496,7 @@ impl<'shell> Session<'shell> {
         self.history.iter()
     }
 
-    pub fn history_sync(&self) -> Result<(), WrashErrorInner> {
+    pub fn history_sync(&self) -> Result<(), WrashError> {
         self.history.sync()
     }
 }
