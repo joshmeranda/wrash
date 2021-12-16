@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use xdg::BaseDirectories;
 
 use crate::session::SessionMode;
+use crate::WrashErrorInner;
 
 /// A single entry into history, providing the command run and some meta-data
 /// describing it.
@@ -64,27 +65,28 @@ impl History {
     /// Creates a new History value using $XDG_DATA_HOME/wrash/history as the
     /// history file. If the file cold not be found or read, the history is
     /// created empty (same as calling `History::new`).
-    pub fn new() -> Result<History, String> {
-        let path = History::find_history_file();
+    pub fn new() -> Result<History, WrashErrorInner> {
+        match History::find_history_file() {
+            Some(path) => History::with_file(path),
+            None => Err(WrashErrorInner::FailedIo(std::io::Error::new(std::io::ErrorKind::Other, "could not find the user's history file"))),
+        }
+    }
 
-        let history = if let Some(path) = &path {
-            let s = match fs::read_to_string(path.as_path()) {
-                Ok(s) => s,
-                Err(err) => {
-                    eprintln!("Error: could not read file: {}", err);
-                    return Err(format!("could not read file: {}", err));
-                }
-            };
-
-            match serde_yaml::from_str(s.as_str()) {
-                Ok(history) => history,
-                Err(err) => return Err(err.to_string()),
+    fn with_file(path: PathBuf) -> Result<History, WrashErrorInner> {
+        let s = match fs::read_to_string(path.as_path()) {
+            Ok(s) => s,
+            Err(err) => {
+                eprintln!("Error: could not read file: {}", err);
+                return Err(WrashErrorInner::FailedIo(err));
             }
-        } else {
-            vec![]
         };
 
-        Ok(Self { history, path })
+        let history = match serde_yaml::from_str(s.as_str()) {
+            Ok(history) => history,
+            Err(err) => return Err(WrashErrorInner::Custom(err.to_string())),
+        };
+
+        Ok(Self { history, path: Some(path) })
     }
 
     pub fn empty() -> History {
@@ -100,13 +102,14 @@ impl History {
 
     /// Sync the current in-memory history with the history file.
     ///
-    /// If the history is stored in memory only (self.path == None), this method fails with [std::io::ErrorKind::Other].
-    pub fn sync(&self) -> Result<(), std::io::Error> {
+    /// If the history is stored in memory only (self.path == None), this
+    /// method returns an error.
+    pub fn sync(&self) -> Result<(), WrashErrorInner> {
         if self.path.is_none() {
-            return Err(std::io::Error::new(
+            return Err(WrashErrorInner::FailedIo(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "no history file exists for struct instance",
-            ));
+            )));
         }
 
         let s = serde_yaml::to_string(self.history.as_slice())
@@ -122,7 +125,7 @@ impl History {
 
                     File::open(self.path.as_ref().unwrap().as_path())?
                 }
-                _ => return Err(err),
+                _ => return Err(WrashErrorInner::FailedIo(err)),
             },
         };
 
@@ -170,6 +173,17 @@ impl<'history> DoubleEndedIterator for HistoryIterator<'history> {
             self.back_index -= 1;
 
             self.entries.get(self.back_index)
+        }
+    }
+}
+
+impl Drop for History {
+    fn drop(&mut self) {
+        if let Err(err) = self.sync() {
+            eprintln!(
+                "Error: could not write session history to history file: {}",
+                err
+            );
         }
     }
 }

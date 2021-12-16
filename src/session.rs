@@ -13,7 +13,7 @@ use termion::raw::IntoRawMode;
 
 use faccess::PathExt;
 
-use crate::completion;
+use crate::{completion, WrashErrorInner};
 use crate::history::{History, HistoryEntry, HistoryIterator};
 
 use crate::prompt;
@@ -496,19 +496,8 @@ impl<'shell> Session<'shell> {
         self.history.iter()
     }
 
-    pub fn history_sync(&self) -> Result<(), std::io::Error> {
+    pub fn history_sync(&self) -> Result<(), WrashErrorInner> {
         self.history.sync()
-    }
-}
-
-impl Drop for Session<'_> {
-    fn drop(&mut self) {
-        if let Err(err) = self.history_sync() {
-            eprintln!(
-                "Error: could not write session history to history file: {}",
-                err
-            );
-        }
     }
 }
 
