@@ -14,7 +14,7 @@ use std::env;
 use std::io::{self, Write};
 use std::process::Command;
 
-use crate::error::StatusError;
+use crate::error::WrashErrorInner;
 use clap::Arg;
 
 use crate::history::History;
@@ -27,7 +27,7 @@ fn prompt() -> String {
     format!("[{}] $ ", env::var("USER").unwrap())
 }
 
-fn run(command: &str, args: &[String]) -> Result<(), StatusError> {
+fn run(command: &str, args: &[String]) -> Result<(), WrashErrorInner> {
     let proc = Command::new(command).args(args).spawn();
 
     let code = match proc {
@@ -50,11 +50,11 @@ fn run(command: &str, args: &[String]) -> Result<(), StatusError> {
     if code == 0 {
         Ok(())
     } else {
-        Err(StatusError { code })
+        Err(WrashErrorInner::NonZeroExit(code))
     }
 }
 
-fn wrapped_main() -> Result<(), StatusError> {
+fn wrapped_main() -> Result<(), WrashErrorInner> {
     let matches = app_from_crate!()
         .arg(
             Arg::with_name("cmd")
@@ -73,8 +73,8 @@ fn wrapped_main() -> Result<(), StatusError> {
     let history = match History::new() {
         Ok(history) => history,
         Err(err) => {
-            eprintln!("Could not establish proper history: {}", err);
-            return Err(StatusError { code: 1 }); // todo: we probably want to just continue with an in-memory history
+            eprintln!("Could not establish proper history: {}\ncontinuing with in memory error (you will not be able to sync history changes", err);
+            History::empty()
         }
     };
 
@@ -85,6 +85,9 @@ fn wrapped_main() -> Result<(), StatusError> {
 
     let mut should_continue = true;
     let mut result = Ok(());
+
+    let mut stdout = std::io::stdout();
+    let mut stderr = std::io::stderr();
 
     while should_continue {
         let _ = io::stdout().flush();
@@ -112,14 +115,14 @@ fn wrapped_main() -> Result<(), StatusError> {
 
         result = match argv[0].as_str() {
             "exit" => {
+                // todo: differentiate between successful run of exit and failed argument parsing for exit
                 should_continue = false;
                 builtins::exit(&argv)
             }
-            "cd" => builtins::cd(&argv),
-            "mode" => builtins::mode(&session, &argv),
-            "setmode" => builtins::setmode(&mut session, &argv),
-            "help" => builtins::help(&argv),
-            "history" => builtins::history(&mut session, &argv),
+            "cd" => builtins::cd(&mut stderr, &argv),
+            "mode" => builtins::mode(&mut stdout, &mut stderr, &mut session, &argv),
+            "?" => builtins::help(&argv),
+            "history" => builtins::history(&mut stdout, &mut stderr, &mut session, &argv),
             _ => match session.mode() {
                 SessionMode::Wrapped => run(base, argv.as_slice()),
                 SessionMode::Normal => run(argv[0].as_str(), &argv[1..]),
@@ -133,7 +136,11 @@ fn wrapped_main() -> Result<(), StatusError> {
 }
 
 fn main() {
-    if let Err(n) = wrapped_main() {
-        std::process::exit(n.code());
+    if let Err(err) = wrapped_main() {
+        match err {
+            WrashErrorInner::NonZeroExit(n) => std::process::exit(n),
+            WrashErrorInner::FailedIo(err) => eprintln!("Error: {}", err),
+            WrashErrorInner::Custom(s) => println!("Error: {}", s),
+        }
     }
 }

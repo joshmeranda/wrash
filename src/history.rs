@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use xdg::BaseDirectories;
 
 use crate::session::SessionMode;
+use crate::WrashErrorInner;
 
 /// A single entry into history, providing the command run and some meta-data
 /// describing it.
@@ -42,10 +43,12 @@ impl HistoryEntry {
     }
 }
 
+#[derive(PartialEq, Debug)]
 pub struct History {
     history: Vec<HistoryEntry>,
 
-    path: PathBuf,
+    // ideally would  be an &Path rather than PathBuf
+    path: Option<PathBuf>,
 }
 
 /// Provides an abstraction around the shell's previously run commands.
@@ -61,33 +64,40 @@ impl History {
 
     /// Creates a new History value using $XDG_DATA_HOME/wrash/history as the
     /// history file. If the file cold not be found or read, the history is
-    /// created empty.
-    pub fn new() -> Result<History, String> {
-        let path = match Self::find_history_file() {
-            Some(path) => path,
-            None => {
-                return Err("could not determine a home directory for the current user".to_string())
+    /// created empty (same as calling `History::new`).
+    pub fn new() -> Result<History, WrashErrorInner> {
+        match History::find_history_file() {
+            Some(path) => History::with_file(path),
+            None => Err(WrashErrorInner::FailedIo(std::io::Error::new(std::io::ErrorKind::Other, "could not find the user's history file"))),
+        }
+    }
+
+    fn with_file(path: PathBuf) -> Result<History, WrashErrorInner> {
+        let s = match fs::read_to_string(path.as_path()) {
+            Ok(s) => s,
+            Err(err) => {
+                eprintln!("Error: could not read file: {}", err);
+                return Err(WrashErrorInner::FailedIo(err));
             }
         };
 
-        let history: Vec<HistoryEntry> = if path.exists() {
-            let s = match fs::read_to_string(path.as_path()) {
-                Ok(s) => s,
-                Err(err) => {
-                    eprintln!("Error: could not read file: {}", err);
-                    return Err(format!("could not read file: {}", err));
-                }
-            };
-
+        let history = if s.is_empty() {
+            vec![]
+        } else {
             match serde_yaml::from_str(s.as_str()) {
                 Ok(history) => history,
-                Err(err) => return Err(err.to_string()),
+                Err(err) => return Err(WrashErrorInner::Custom(err.to_string())),
             }
-        } else {
-            vec![]
         };
 
-        Ok(Self { history, path })
+        Ok(Self { history, path: Some(path) })
+    }
+
+    pub fn empty() -> History {
+        History {
+            history: vec![],
+            path: None,
+        }
     }
 
     pub fn push(&mut self, entry: HistoryEntry) {
@@ -95,20 +105,31 @@ impl History {
     }
 
     /// Sync the current in-memory history with the history file.
-    pub fn sync(&self) -> Result<(), std::io::Error> {
+    ///
+    /// If the history is stored in memory only (self.path == None), this
+    /// method returns an error.
+    pub fn sync(&self) -> Result<(), WrashErrorInner> {
+        if self.path.is_none() {
+            return Err(WrashErrorInner::FailedIo(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "no history file exists for struct instance",
+            )));
+        }
+
         let s = serde_yaml::to_string(self.history.as_slice())
             .expect("to-string should not have erred");
-        let mut history_file = match File::create(self.path.as_path()) {
+
+        let mut history_file = match File::create(self.path.as_ref().unwrap().as_path()) {
             Ok(f) => f,
             Err(err) => match err.kind() {
                 ErrorKind::NotFound => {
-                    if let Some(parent) = self.path.parent() {
+                    if let Some(parent) = self.path.as_ref().unwrap().parent() {
                         fs::create_dir_all(parent)?;
                     }
 
-                    File::open(self.path.as_path())?
+                    File::open(self.path.as_ref().unwrap().as_path())?
                 }
-                _ => return Err(err),
+                _ => return Err(WrashErrorInner::FailedIo(err)),
             },
         };
 
@@ -157,5 +178,122 @@ impl<'history> DoubleEndedIterator for HistoryIterator<'history> {
 
             self.entries.get(self.back_index)
         }
+    }
+}
+
+impl Drop for History {
+    fn drop(&mut self) {
+        if let Err(err) = self.sync() {
+            eprintln!(
+                "Error: could not write session history to history file: {}",
+                err
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::fs::read_to_string;
+    use std::io::Write;
+    use std::path::PathBuf;
+    use tempfile::NamedTempFile;
+    use crate::{History, SessionMode, WrashErrorInner};
+    use crate::history::HistoryEntry;
+
+    fn get_resource_path(components: &[&str]) -> PathBuf {
+        vec!["tests", "resources"]
+            .iter()
+            .chain(components.iter())
+            .collect()
+    }
+
+    #[test]
+    fn test_with_file() -> Result<(), Box<dyn std::error::Error>> {
+        let history_path = get_resource_path(&["history", "history.yaml"]);
+
+        let expected = History {
+            history: vec![
+                HistoryEntry::new(
+                    "subcmd -arg 1 -arg 2".to_string(),
+                    Some("cmd".to_string()),
+                    SessionMode::Wrapped,
+                    false),
+                HistoryEntry::new(
+                    "othersubcmd --verbose ARG".to_string(),
+                    None,
+                    SessionMode::Normal,
+                    false),
+                HistoryEntry::new(
+                    "mode".to_string(),
+                    None,
+                    SessionMode::Wrapped,
+                    true),
+            ],
+            path: Some(history_path.clone()),
+        };
+        let actual = History::with_file(history_path)?;
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_with_file_no_exist() -> Result<(), Box<dyn std::error::Error>> {
+        let history_path = get_resource_path(&["history", "i do not exist"]);
+
+        let expected = Err(WrashErrorInner::FailedIo(std::io::Error::new(std::io::ErrorKind::NotFound, "")));
+        let actual = History::with_file(history_path);
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_with_file_bad_syntax() -> Result<(), Box<dyn std::error::Error>> {
+        let history_path = get_resource_path(&["history", "history.invalid.yaml"]);
+
+        let expected = Err(WrashErrorInner::Custom(".[0].is_builtin: invalid type: string \"false,\", expected a boolean at line 3 column 15".to_string()));
+        let actual = History::with_file(history_path);
+
+        assert_eq!(expected, actual);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_drop() -> Result<(), Box<dyn std::error::Error>> {
+        let mut temp = NamedTempFile::new()?;
+        let path = temp.path().to_path_buf();
+        let mut file = temp.as_file();
+
+        write!(file, "")?;
+
+        {
+            let mut history = History::with_file(path.clone())?;
+
+            history.push(HistoryEntry::new(
+                "subcmd -arg 1 -arg 2".to_string(),
+                Some("cmd".to_string()),
+                SessionMode::Wrapped,
+                false)
+            )
+        }
+
+        let expected =concat!(
+            "---\n",
+            "- argv: subcmd -arg 1 -arg 2\n",
+            "  base: cmd\n",
+            "  mode: Wrapped\n",
+            "  is_builtin: false\n",
+        );
+
+        let actual = read_to_string(path)?;
+
+        assert_eq!(expected, actual);
+
+        Ok(())
     }
 }

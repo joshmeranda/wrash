@@ -1,0 +1,7 @@
+---
+- argv: subcmd -arg 1 -arg 2
+  is_builtin: false,
+- argv: otehrsubcmd --verbose ARG
+  is_builtin: false
+  base: ~
+  is_builtin: true

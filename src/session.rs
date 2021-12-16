@@ -1,4 +1,4 @@
-use std::cmp::{max, Ordering};
+use std::cmp::{self, Ordering};
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::io::{self, Write};
@@ -13,12 +13,11 @@ use termion::raw::IntoRawMode;
 
 use faccess::PathExt;
 
-use crate::completion;
+use crate::{completion, WrashErrorInner};
 use crate::history::{History, HistoryEntry, HistoryIterator};
 
 use crate::prompt;
 
-// todo: add support for escaped spaces
 /// Get the position in a string at which the current word begins.
 fn get_previous_boundary(buffer: &str, cursor_offset: usize) -> usize {
     if cursor_offset == 0 {
@@ -42,7 +41,6 @@ fn get_previous_boundary(buffer: &str, cursor_offset: usize) -> usize {
     position
 }
 
-// todo: add support for escaped spaces
 /// Get the position of the next word.
 fn get_next_boundary(buffer: &str, cursor_offset: usize) -> usize {
     if cursor_offset == buffer.len() {
@@ -56,7 +54,6 @@ fn get_next_boundary(buffer: &str, cursor_offset: usize) -> usize {
     let mut position = cursor_offset + 1;
 
     for c in chars {
-        println!("=== [next c] {:?} ===", c);
         if !initial_is_boundary && c == ' ' || initial_is_boundary && c != ' ' {
             break;
         }
@@ -164,10 +161,10 @@ fn get_common_prefix<S: AsRef<str> + Display>(values: &[S]) -> Option<String> {
 /// Get how many entries with the given length can fit on a line with
 /// `padding_length` spaces between them.
 fn get_entries_per_line(padding_length: usize, entry_length: usize, line_length: usize) -> usize {
-    // the length of a line (L) is equal to the length of each entity (k) times
-    // the amount of entities (n) plus the length of padding (m) time the
-    // amount of entities - 1:
-    //                 L = nk + m(n - 1) -> n = (L + m) / (k + m)
+    // the length of a line (L) is at least equal to the length of each entity
+    // (k) times the amount of entities (n) plus the length of padding (m) time
+    // the amount of entities - 1:
+    //                 L ≥ nk + m(n - 1) -> n ≥ (L + m) / (k + m)
     (line_length + padding_length) / (entry_length + padding_length)
 }
 
@@ -201,7 +198,6 @@ impl Display for SessionMode {
     }
 }
 
-// todo: ass support for frozen mode (cannot use `setmode` to change the shell session mode to normal)
 pub struct Session<'shell> {
     history: History,
 
@@ -249,6 +245,7 @@ impl<'shell> Session<'shell> {
     ///
     /// todo: handle returning terminal mode to normal when session is in normal mode
     /// todo: consider a callback architecture to make it easier to reset tab_is_hit
+    /// todo: add trailing path::MAIN_SEPARATOR to end of completion if it is a directory
     pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();
@@ -393,6 +390,8 @@ impl<'shell> Session<'shell> {
                 }
 
                 // tab completion
+                // todo: completion overwrites entire buffer rather than being inserted
+                //       (wrapping `git`) `add src/` -> `src/main.rs`
                 Key::Char('\t') => {
                     let word_start = get_previous_boundary(buffer.as_str(), offset);
                     let is_command = word_start == 0;
@@ -408,7 +407,7 @@ impl<'shell> Session<'shell> {
                             if was_tab_previous_key {
                                 // handle previous tab hit
                                 let max_width =
-                                    completions.iter().fold(0, |acc, i| max(acc, i.len()));
+                                    completions.iter().fold(0, |acc, i| cmp::max(acc, i.len()));
                                 let entries_pre_line = get_entries_per_line(
                                     2,
                                     max_width,
@@ -497,19 +496,8 @@ impl<'shell> Session<'shell> {
         self.history.iter()
     }
 
-    pub fn history_sync(&self) -> Result<(), std::io::Error> {
+    pub fn history_sync(&self) -> Result<(), WrashErrorInner> {
         self.history.sync()
-    }
-}
-
-impl Drop for Session<'_> {
-    fn drop(&mut self) {
-        if let Err(err) = self.history_sync() {
-            eprintln!(
-                "Error: could not write session history to history file: {}",
-                err
-            );
-        }
     }
 }
 
