@@ -13,8 +13,8 @@ use termion::raw::IntoRawMode;
 
 use faccess::PathExt;
 
-use crate::{completion, WrashError};
 use crate::history::{History, HistoryEntry, HistoryIterator};
+use crate::{completion, WrashError};
 
 use crate::prompt;
 
@@ -152,7 +152,7 @@ fn get_common_prefix<S: AsRef<str>>(values: &[S]) -> Option<&str> {
             .skip(1)
             .all(|s| s.as_ref().starts_with(&prefix[..prefix_len]));
 
-        if ! is_common {
+        if !is_common {
             prefix_len -= 1;
         }
     }
@@ -643,7 +643,6 @@ mod tests {
             env::set_current_dir(old_cwd)?;
 
             let expected: Vec<String> = vec![
-                // todo: add trailing slash for directory name (ie "directory/")
                 String::from("directory"),
                 // form path
                 String::from("a_final_file"),
@@ -882,11 +881,8 @@ mod tests {
 
         #[test]
         fn test_common_prefix_parent_dir() {
-            let actual = session::get_common_prefix(&[
-                "src/main.rs",
-                "src/session.rs",
-                "src/completion.rs",
-            ]);
+            let actual =
+                session::get_common_prefix(&["src/main.rs", "src/session.rs", "src/completion.rs"]);
             let expected = Some("src/");
 
             assert_eq!(expected, actual);
@@ -898,9 +894,8 @@ mod tests {
 
         #[test]
         fn err_on_set_frozen_session() -> Result<(), Box<dyn std::error::Error>> {
-            // todo: allow for clean / empty history for this test to pass reliably
             let mut session = Session::new(
-                History::new()?,
+                History::empty(),
                 true,
                 "nonsense_command",
                 SessionMode::Wrapped,

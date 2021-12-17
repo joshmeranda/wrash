@@ -74,16 +74,11 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
 }
 
 /// CD is builtin for changing the current working directory in the shell.
-pub fn cd(
-    err_writer: &mut impl Write,
-    argv: &[String]) -> BuiltinResult {
+pub fn cd(err_writer: &mut impl Write, argv: &[String]) -> BuiltinResult {
     let app = app_from_crate!()
         .name("cd")
         .about("change the current working directory")
-        .arg(
-            Arg::with_name("directory")
-                .help("the directory to change into")
-        );
+        .arg(Arg::with_name("directory").help("the directory to change into"));
 
     let matches = handle_matches!(app, argv);
 
@@ -132,7 +127,10 @@ pub fn mode(
         let new_mode = matches.value_of("mode").unwrap().parse().unwrap();
 
         if session.set_mode(new_mode).is_err() {
-            write!(err_writer, "Error: could not set session mode, session is frozen")?;
+            write!(
+                err_writer,
+                "Error: could not set session mode, session is frozen"
+            )?;
             Err(WrashError::NonZeroExit(1))
         } else {
             Ok(())
@@ -209,12 +207,18 @@ pub fn history(
         ("filter", Some(sub_matches)) => {
             let base_filter = sub_matches.value_of("base-filter");
             let mode_filter = match sub_matches.value_of("mode-filter") {
-                Some(mode) => if let Ok(parsed) = SessionMode::from_str(mode) {
-                    Some(parsed)
-                } else {
-                    write!(err_writer, "could not parse value '{}', as SessionMode", mode)?;
-                    return Err(WrashError::NonZeroExit(1))
-                },
+                Some(mode) => {
+                    if let Ok(parsed) = SessionMode::from_str(mode) {
+                        Some(parsed)
+                    } else {
+                        write!(
+                            err_writer,
+                            "could not parse value '{}', as SessionMode",
+                            mode
+                        )?;
+                        return Err(WrashError::NonZeroExit(1));
+                    }
+                }
                 None => None,
             };
             let show_builtin = sub_matches.is_present("show-builtin");
@@ -224,41 +228,51 @@ pub fn history(
                     Ok(r) => Some(r),
                     Err(_) => {
                         write!(err_writer, "invalid regex pattern '{}'", s)?;
-                        return Err(WrashError::NonZeroExit(1))
+                        return Err(WrashError::NonZeroExit(1));
                     }
                 }
             } else {
                 None
             };
 
-            if base_filter.is_some() && mode_filter.is_some() && mode_filter.unwrap() != SessionMode::Wrapped {
-                write!(err_writer, "option '--base' may not be used when '--mode' is not 'wrapped'")?;
+            if base_filter.is_some()
+                && mode_filter.is_some()
+                && mode_filter.unwrap() != SessionMode::Wrapped
+            {
+                write!(
+                    err_writer,
+                    "option '--base' may not be used when '--mode' is not 'wrapped'"
+                )?;
                 return Err(WrashError::NonZeroExit(1));
             }
 
-            for (i, entry) in session.history_iter().filter(|entry| {
-                if entry.is_builtin && ! show_builtin {
-                    return false
-                }
-
-                if let Some(base) = base_filter {
-                    if entry.base.is_none() || entry.base.as_ref().unwrap() != base {
-                        return false
+            for (i, entry) in session
+                .history_iter()
+                .filter(|entry| {
+                    if entry.is_builtin && !show_builtin {
+                        return false;
                     }
-                }
 
-                if let Some(mode) = mode_filter {
-                    if entry.mode != mode {
-                        return false
+                    if let Some(base) = base_filter {
+                        if entry.base.is_none() || entry.base.as_ref().unwrap() != base {
+                            return false;
+                        }
                     }
-                }
 
-                if let Some(pattern) = &pattern {
-                    pattern.is_match(entry.get_command().as_str())
-                } else {
-                    true
-                }
-            }).enumerate() {
+                    if let Some(mode) = mode_filter {
+                        if entry.mode != mode {
+                            return false;
+                        }
+                    }
+
+                    if let Some(pattern) = &pattern {
+                        pattern.is_match(entry.get_command().as_str())
+                    } else {
+                        true
+                    }
+                })
+                .enumerate()
+            {
                 writeln!(out_writer, "{}: {}", i, entry.get_command())?;
             }
         }
@@ -340,12 +354,16 @@ mod tests {
         fn test_cd_destination_no_exist() -> Result<(), Box<dyn std::error::Error>> {
             let mut err = BufWriter::new(vec![]);
 
-            let expected = Err(WrashError::FailedIo(Error::new(ErrorKind::NotFound, "No such file or directory")));
+            let expected = Err(WrashError::FailedIo(Error::new(
+                ErrorKind::NotFound,
+                "No such file or directory",
+            )));
             let actual = builtins::cd(&mut err, &["cd".to_string(), "no_exist".to_string()]);
 
             assert_eq!(expected, actual);
 
-            let expected_err = String::from("Error cahnging directory: No such file or directory (os error 2)\n");
+            let expected_err =
+                String::from("Error cahnging directory: No such file or directory (os error 2)\n");
             let actual_err = String::from_utf8(err.into_inner()?).unwrap();
 
             assert_eq!(expected_err, actual_err);
@@ -717,7 +735,9 @@ mod tests {
 
             assert_eq!(expected, actual);
 
-            let expected_out = String::from("0: git add -A\n1: git commit -m 'some commit message'\n2: cargo clippy\n");
+            let expected_out = String::from(
+                "0: git add -A\n1: git commit -m 'some commit message'\n2: cargo clippy\n",
+            );
             let actual_out = String::from_utf8(out.into_inner()?).unwrap();
 
             assert_eq!(expected_out, actual_out);
@@ -744,7 +764,11 @@ mod tests {
                 &mut out,
                 &mut err,
                 &mut session,
-                &["history".to_string(), "filter".to_string(), "--show-builtin".to_string()],
+                &[
+                    "history".to_string(),
+                    "filter".to_string(),
+                    "--show-builtin".to_string(),
+                ],
             );
 
             assert_eq!(expected, actual);
@@ -980,7 +1004,8 @@ mod tests {
 
             assert_eq!(expected_out, actual_out);
 
-            let expected_err = String::from("option '--base' may not be used when '--mode' is not 'wrapped'");
+            let expected_err =
+                String::from("option '--base' may not be used when '--mode' is not 'wrapped'");
             let actual_err = String::from_utf8(err.into_inner()?).unwrap();
 
             assert_eq!(expected_err, actual_err);
@@ -989,7 +1014,8 @@ mod tests {
         }
 
         #[test]
-        fn test_history_filter_base_with_filter_wrapped() -> Result<(), Box<dyn std::error::Error>> {
+        fn test_history_filter_base_with_filter_wrapped() -> Result<(), Box<dyn std::error::Error>>
+        {
             let mut out = BufWriter::new(vec![]);
             let mut err = BufWriter::new(vec![]);
 
@@ -1086,7 +1112,8 @@ mod tests {
 
             assert_eq!(expected, actual);
 
-            let expected_out = String::from("0: git add -A\n1: git commit -m 'some commit message'\n");
+            let expected_out =
+                String::from("0: git add -A\n1: git commit -m 'some commit message'\n");
             let actual_out = String::from_utf8(out.into_inner()?).unwrap();
 
             assert_eq!(expected_out, actual_out);
