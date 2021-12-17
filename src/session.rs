@@ -234,9 +234,11 @@ impl<'shell> Session<'shell> {
     }
 
     // todo: return type is very non_descriptive
-    pub fn set_mode(&mut self, mode: SessionMode) -> Result<(), ()> {
+    pub fn set_mode(&mut self, mode: SessionMode) -> Result<(), WrashError> {
         if self.is_frozen {
-            Err(())
+            Err(WrashError::Custom(
+                "cannot set the mode of a frozen session".to_string(),
+            ))
         } else {
             self.mode = mode;
             Ok(())

@@ -3,8 +3,6 @@ use std::path::{Component, Path, PathBuf};
 
 use glob::{self, PatternError};
 
-// todo: handle duplicates
-
 /// Merge the prefix path with the completion path to restore any path
 /// component lost during processing.
 fn merge_prefix_with_completion(original_path: &Path, new: &Path) -> Option<PathBuf> {

@@ -127,7 +127,7 @@ pub fn mode(
         let new_mode = matches.value_of("mode").unwrap().parse().unwrap();
 
         if session.set_mode(new_mode).is_err() {
-            write!(
+            writeln!(
                 err_writer,
                 "Error: could not set session mode, session is frozen"
             )?;
