@@ -242,10 +242,6 @@ impl<'shell> Session<'shell> {
     }
 
     /// Take user input.
-    ///
-    /// todo: handle returning terminal mode to normal when session is in normal mode
-    /// todo: consider a callback architecture to make it easier to reset tab_is_hit
-    /// todo: add trailing path::MAIN_SEPARATOR to end of completion if it is a directory
     pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();
@@ -405,32 +401,33 @@ impl<'shell> Session<'shell> {
                             if Path::new(buffer.as_str()).is_dir() {
                                 buffer.push(path::MAIN_SEPARATOR);
                             }
-                            
+
                             offset = buffer.len();
                         }
                         Ordering::Greater => {
+                            if let Some(common_prefix) = get_common_prefix(completions.as_slice()) {
+                                buffer.replace_range(0..offset, common_prefix.as_str());
+                                offset = buffer.len();
+                            }
+
                             if was_tab_previous_key {
                                 // handle previous tab hit
                                 let max_width =
                                     completions.iter().fold(0, |acc, i| cmp::max(acc, i.len()));
-                                let entries_pre_line = get_entries_per_line(
+                                let entries_per_line = get_entries_per_line(
                                     2,
                                     max_width,
                                     termion::terminal_size().unwrap().0 as usize,
                                 );
 
                                 for (i, c) in completions.iter().enumerate() {
-                                    if i % entries_pre_line == 0 {
+                                    if i % entries_per_line == 0 {
                                         write!(stdout, "\n\r{:<width$}", c, width = max_width)?;
                                     } else {
                                         write!(stdout, "{:<width$}", c, width = max_width + 2)?;
                                     }
                                 }
-                            } else if let Some(common_prefix) =
-                                get_common_prefix(completions.as_slice())
-                            {
-                                buffer.replace_range(0..offset, common_prefix.as_str());
-                                offset = buffer.len();
+                                writeln!(stdout)?;
                             }
                         }
                     }
