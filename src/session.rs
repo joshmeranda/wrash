@@ -2,7 +2,7 @@ use std::cmp::{self, Ordering};
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::io::{self, Write};
-use std::path::{Component, Path};
+use std::path::{self, Component, Path};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
@@ -13,8 +13,8 @@ use termion::raw::IntoRawMode;
 
 use faccess::PathExt;
 
-use crate::{completion, WrashError};
 use crate::history::{History, HistoryEntry, HistoryIterator};
+use crate::{completion, WrashError};
 
 use crate::prompt;
 
@@ -125,36 +125,42 @@ fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
 /// Get a common prefix found in all string in values.dd
 ///
 /// todo: consider using a binary search rather than iteratively popping characters off the end
-fn get_common_prefix<S: AsRef<str> + Display>(values: &[S]) -> Option<String> {
+fn get_common_prefix<S: AsRef<str>>(values: &[S]) -> Option<&str> {
     if values.as_ref().is_empty() {
         return None;
     }
 
     // use value with the shortest length as the first value
-    let prefix = values.iter().skip(1).fold(values[0].to_string(), |acc, s| {
+    let prefix: &str = values.iter().skip(1).fold(values[0].as_ref(), |acc, s| {
         if s.as_ref().len() < acc.len() {
-            s.to_string()
+            s.as_ref()
         } else {
             acc
         }
     });
+
     let mut prefix_len = prefix.len();
 
     let mut is_common = values
         .iter()
-        .all(|s| s.as_ref().starts_with(prefix.as_str()));
+        .skip(1)
+        .all(|s| s.as_ref().starts_with(prefix));
 
     while !is_common && prefix_len > 0 {
         is_common = values
             .iter()
+            .skip(1)
             .all(|s| s.as_ref().starts_with(&prefix[..prefix_len]));
-        prefix_len -= 1;
+
+        if !is_common {
+            prefix_len -= 1;
+        }
     }
 
     if prefix_len == 0 {
         None
     } else {
-        Some(prefix)
+        Some(&prefix[..prefix_len])
     }
 }
 
@@ -242,10 +248,6 @@ impl<'shell> Session<'shell> {
     }
 
     /// Take user input.
-    ///
-    /// todo: handle returning terminal mode to normal when session is in normal mode
-    /// todo: consider a callback architecture to make it easier to reset tab_is_hit
-    /// todo: add trailing path::MAIN_SEPARATOR to end of completion if it is a directory
     pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();
@@ -277,8 +279,7 @@ impl<'shell> Session<'shell> {
         write!(stdout, "{}", prompt)?;
         stdout.flush()?;
 
-        // todo: implement some tab-completion (even if its just files)
-        // todo: add support for ctrl+d && ctrl+c
+        // todo: add support for ctrl+c
         for key in stdin.keys().filter_map(Result::ok) {
             match key {
                 // character deletion
@@ -390,8 +391,6 @@ impl<'shell> Session<'shell> {
                 }
 
                 // tab completion
-                // todo: completion overwrites entire buffer rather than being inserted
-                //       (wrapping `git`) `add src/` -> `src/main.rs`
                 Key::Char('\t') => {
                     let word_start = get_previous_boundary(buffer.as_str(), offset);
                     let is_command = word_start == 0;
@@ -401,31 +400,37 @@ impl<'shell> Session<'shell> {
                         Ordering::Less => { /* do nothing */ }
                         Ordering::Equal => {
                             buffer.replace_range(word_start..offset, completions[0].as_str());
+
+                            if Path::new(buffer.as_str()).is_dir() {
+                                buffer.push(path::MAIN_SEPARATOR);
+                            }
+
                             offset = buffer.len();
                         }
                         Ordering::Greater => {
+                            if let Some(common_prefix) = get_common_prefix(completions.as_slice()) {
+                                buffer.replace_range(word_start..offset, common_prefix);
+                                offset = buffer.len();
+                            }
+
                             if was_tab_previous_key {
                                 // handle previous tab hit
                                 let max_width =
                                     completions.iter().fold(0, |acc, i| cmp::max(acc, i.len()));
-                                let entries_pre_line = get_entries_per_line(
+                                let entries_per_line = get_entries_per_line(
                                     2,
                                     max_width,
                                     termion::terminal_size().unwrap().0 as usize,
                                 );
 
                                 for (i, c) in completions.iter().enumerate() {
-                                    if i % entries_pre_line == 0 {
+                                    if i % entries_per_line == 0 {
                                         write!(stdout, "\n\r{:<width$}", c, width = max_width)?;
                                     } else {
                                         write!(stdout, "{:<width$}", c, width = max_width + 2)?;
                                     }
                                 }
-                            } else if let Some(common_prefix) =
-                                get_common_prefix(completions.as_slice())
-                            {
-                                buffer.replace_range(0..offset, common_prefix.as_str());
-                                offset = buffer.len();
+                                writeln!(stdout)?;
                             }
                         }
                     }
@@ -638,7 +643,6 @@ mod tests {
             env::set_current_dir(old_cwd)?;
 
             let expected: Vec<String> = vec![
-                // todo: add trailing slash for directory name (ie "directory/")
                 String::from("directory"),
                 // form path
                 String::from("a_final_file"),
@@ -857,13 +861,13 @@ mod tests {
         #[test]
         fn test_common_prefix_with_common_prefix() {
             let actual = session::get_common_prefix(&["a_file", "a_file_too", "a_file_as_well"]);
-            let expected = Some("a_file".to_string());
+            let expected = Some("a_file");
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn test_common_prefix_with_partial_common_prefix() {
+        fn test_common_prefix_with_mostly_common_prefix() {
             let actual = session::get_common_prefix(&[
                 "a_file",
                 "a_file_too",
@@ -874,6 +878,15 @@ mod tests {
 
             assert_eq!(expected, actual);
         }
+
+        #[test]
+        fn test_common_prefix_parent_dir() {
+            let actual =
+                session::get_common_prefix(&["src/main.rs", "src/session.rs", "src/completion.rs"]);
+            let expected = Some("src/");
+
+            assert_eq!(expected, actual);
+        }
     }
 
     mod test_session {
@@ -881,9 +894,8 @@ mod tests {
 
         #[test]
         fn err_on_set_frozen_session() -> Result<(), Box<dyn std::error::Error>> {
-            // todo: allow for clean / empty history for this test to pass reliably
             let mut session = Session::new(
-                History::new()?,
+                History::empty(),
                 true,
                 "nonsense_command",
                 SessionMode::Wrapped,

@@ -68,7 +68,10 @@ impl History {
     pub fn new() -> Result<History, WrashError> {
         match History::find_history_file() {
             Some(path) => History::with_file(path),
-            None => Err(WrashError::FailedIo(std::io::Error::new(std::io::ErrorKind::Other, "could not find the user's history file"))),
+            None => Err(WrashError::FailedIo(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "could not find the user's history file",
+            ))),
         }
     }
 
@@ -90,7 +93,10 @@ impl History {
             }
         };
 
-        Ok(Self { history, path: Some(path) })
+        Ok(Self {
+            history,
+            path: Some(path),
+        })
     }
 
     pub fn empty() -> History {
@@ -194,12 +200,12 @@ impl Drop for History {
 
 #[cfg(test)]
 mod test {
+    use crate::history::HistoryEntry;
+    use crate::{History, SessionMode, WrashError};
     use std::fs::read_to_string;
     use std::io::Write;
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
-    use crate::{History, SessionMode, WrashError};
-    use crate::history::HistoryEntry;
 
     fn get_resource_path(components: &[&str]) -> PathBuf {
         vec!["tests", "resources"]
@@ -218,17 +224,15 @@ mod test {
                     "subcmd -arg 1 -arg 2".to_string(),
                     Some("cmd".to_string()),
                     SessionMode::Wrapped,
-                    false),
+                    false,
+                ),
                 HistoryEntry::new(
                     "othersubcmd --verbose ARG".to_string(),
                     None,
                     SessionMode::Normal,
-                    false),
-                HistoryEntry::new(
-                    "mode".to_string(),
-                    None,
-                    SessionMode::Wrapped,
-                    true),
+                    false,
+                ),
+                HistoryEntry::new("mode".to_string(), None, SessionMode::Wrapped, true),
             ],
             path: Some(history_path.clone()),
         };
@@ -243,7 +247,10 @@ mod test {
     fn test_with_file_no_exist() -> Result<(), Box<dyn std::error::Error>> {
         let history_path = get_resource_path(&["history", "i do not exist"]);
 
-        let expected = Err(WrashError::FailedIo(std::io::Error::new(std::io::ErrorKind::NotFound, "")));
+        let expected = Err(WrashError::FailedIo(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "",
+        )));
         let actual = History::with_file(history_path);
 
         assert_eq!(expected, actual);
@@ -278,11 +285,11 @@ mod test {
                 "subcmd -arg 1 -arg 2".to_string(),
                 Some("cmd".to_string()),
                 SessionMode::Wrapped,
-                false)
-            )
+                false,
+            ))
         }
 
-        let expected =concat!(
+        let expected = concat!(
             "---\n",
             "- argv: subcmd -arg 1 -arg 2\n",
             "  base: cmd\n",
