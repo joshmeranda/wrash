@@ -2,7 +2,7 @@ use std::cmp::{self, Ordering};
 use std::env;
 use std::fmt::{Display, Formatter};
 use std::io::{self, Write};
-use std::path::{Component, Path};
+use std::path::{self, Component, Path};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
@@ -401,6 +401,11 @@ impl<'shell> Session<'shell> {
                         Ordering::Less => { /* do nothing */ }
                         Ordering::Equal => {
                             buffer.replace_range(word_start..offset, completions[0].as_str());
+
+                            if Path::new(buffer.as_str()).is_dir() {
+                                buffer.push(path::MAIN_SEPARATOR);
+                            }
+                            
                             offset = buffer.len();
                         }
                         Ordering::Greater => {
