@@ -125,36 +125,42 @@ fn get_tab_completions(prefix: &str, is_command: bool) -> Vec<String> {
 /// Get a common prefix found in all string in values.dd
 ///
 /// todo: consider using a binary search rather than iteratively popping characters off the end
-fn get_common_prefix<S: AsRef<str> + Display>(values: &[S]) -> Option<String> {
+fn get_common_prefix<S: AsRef<str>>(values: &[S]) -> Option<&str> {
     if values.as_ref().is_empty() {
         return None;
     }
 
     // use value with the shortest length as the first value
-    let prefix = values.iter().skip(1).fold(values[0].to_string(), |acc, s| {
+    let prefix: &str = values.iter().skip(1).fold(values[0].as_ref(), |acc, s| {
         if s.as_ref().len() < acc.len() {
-            s.to_string()
+            s.as_ref()
         } else {
             acc
         }
     });
+
     let mut prefix_len = prefix.len();
 
     let mut is_common = values
         .iter()
-        .all(|s| s.as_ref().starts_with(prefix.as_str()));
+        .skip(1)
+        .all(|s| s.as_ref().starts_with(prefix));
 
     while !is_common && prefix_len > 0 {
         is_common = values
             .iter()
+            .skip(1)
             .all(|s| s.as_ref().starts_with(&prefix[..prefix_len]));
-        prefix_len -= 1;
+
+        if ! is_common {
+            prefix_len -= 1;
+        }
     }
 
     if prefix_len == 0 {
         None
     } else {
-        Some(prefix)
+        Some(&prefix[..prefix_len])
     }
 }
 
@@ -273,8 +279,7 @@ impl<'shell> Session<'shell> {
         write!(stdout, "{}", prompt)?;
         stdout.flush()?;
 
-        // todo: implement some tab-completion (even if its just files)
-        // todo: add support for ctrl+d && ctrl+c
+        // todo: add support for ctrl+c
         for key in stdin.keys().filter_map(Result::ok) {
             match key {
                 // character deletion
@@ -386,8 +391,6 @@ impl<'shell> Session<'shell> {
                 }
 
                 // tab completion
-                // todo: completion overwrites entire buffer rather than being inserted
-                //       (wrapping `git`) `add src/` -> `src/main.rs`
                 Key::Char('\t') => {
                     let word_start = get_previous_boundary(buffer.as_str(), offset);
                     let is_command = word_start == 0;
@@ -406,7 +409,7 @@ impl<'shell> Session<'shell> {
                         }
                         Ordering::Greater => {
                             if let Some(common_prefix) = get_common_prefix(completions.as_slice()) {
-                                buffer.replace_range(0..offset, common_prefix.as_str());
+                                buffer.replace_range(word_start..offset, common_prefix);
                                 offset = buffer.len();
                             }
 
@@ -859,13 +862,13 @@ mod tests {
         #[test]
         fn test_common_prefix_with_common_prefix() {
             let actual = session::get_common_prefix(&["a_file", "a_file_too", "a_file_as_well"]);
-            let expected = Some("a_file".to_string());
+            let expected = Some("a_file");
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn test_common_prefix_with_partial_common_prefix() {
+        fn test_common_prefix_with_mostly_common_prefix() {
             let actual = session::get_common_prefix(&[
                 "a_file",
                 "a_file_too",
@@ -873,6 +876,18 @@ mod tests {
                 "some_new_file",
             ]);
             let expected = None;
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_common_prefix_parent_dir() {
+            let actual = session::get_common_prefix(&[
+                "src/main.rs",
+                "src/session.rs",
+                "src/completion.rs",
+            ]);
+            let expected = Some("src/");
 
             assert_eq!(expected, actual);
         }
