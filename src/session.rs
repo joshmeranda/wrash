@@ -250,6 +250,9 @@ impl<'shell> Session<'shell> {
     }
 
     /// Take user input.
+    ///
+    /// todo: command errors overwrite prompt
+    /// todo: updating prompt or buffer overwrites any content before it
     pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();
