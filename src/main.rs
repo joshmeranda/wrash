@@ -10,9 +10,10 @@ mod error;
 mod history;
 mod session;
 
-use std::env;
-use std::io::{self, Write};
-use std::process::Command;
+use std::{env, thread};
+use std::io::{self, Read, Write};
+use std::process::{Child, Command, Stdio};
+use std::sync::{Arc, Mutex};
 
 use crate::error::WrashError;
 use clap::Arg;
@@ -88,6 +89,8 @@ fn wrapped_main() -> Result<(), WrashError> {
 
     let mut stdout = std::io::stdout();
     let mut stderr = std::io::stderr();
+
+    ctrlc::set_handler(|| { });
 
     while should_continue {
         let _ = io::stdout().flush();
