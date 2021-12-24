@@ -6,7 +6,7 @@ use std::path::{self, Component, Path};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
-use termion::cursor::{Goto, Right};
+use termion::cursor::{DetectCursorPos, Goto, Left, Right};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
@@ -233,7 +233,6 @@ impl<'shell> Session<'shell> {
         self.mode
     }
 
-    // todo: return type is very non_descriptive
     pub fn set_mode(&mut self, mode: SessionMode) -> Result<(), WrashError> {
         if self.is_frozen {
             Err(WrashError::Custom(
@@ -279,12 +278,17 @@ impl<'shell> Session<'shell> {
 
         let mut was_tab_previous_key = false;
 
+        if let (x, y) = stdout.cursor_pos()? {
+            if x != 1 {
+                writeln!(stdout, "{}",  Left(x));
+            }
+        }
+
         let prompt = prompt();
 
         write!(stdout, "{}", prompt)?;
         stdout.flush()?;
 
-        // todo: add support for ctrl+c
         for key in stdin.keys().filter_map(Result::ok) {
             match key {
                 // character deletion

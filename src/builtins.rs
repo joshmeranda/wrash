@@ -10,8 +10,6 @@ use regex::Regex;
 
 type BuiltinResult = Result<(), WrashError>;
 
-// todo: make a builtin or runnable type?
-
 /// handle_matches is designed to allow for clean and uniform argument handling.
 macro_rules! handle_matches {
     ($app:ident, $argv:ident) => {
