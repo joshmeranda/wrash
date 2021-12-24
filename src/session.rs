@@ -6,7 +6,7 @@ use std::path::{self, Component, Path};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
-use termion::cursor::{DetectCursorPos, Goto, Left, Right};
+use termion::cursor::{DetectCursorPos, Goto, Left, Restore, Right, Save};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
@@ -278,7 +278,7 @@ impl<'shell> Session<'shell> {
 
         let mut was_tab_previous_key = false;
 
-        if let (x, y) = stdout.cursor_pos()? {
+        if let (x, _) = stdout.cursor_pos()? {
             if x != 1 {
                 writeln!(stdout, "{}",  Left(x));
             }
@@ -286,7 +286,7 @@ impl<'shell> Session<'shell> {
 
         let prompt = prompt();
 
-        write!(stdout, "{}", prompt)?;
+        write!(stdout, "{}{}", prompt, Save)?;
         stdout.flush()?;
 
         for key in stdin.keys().filter_map(Result::ok) {
@@ -462,15 +462,34 @@ impl<'shell> Session<'shell> {
                 _ => { /* do nothing */ }
             };
 
-            // todo: replace final carriage return + Right(...) with Left(...)
-            write!(
-                stdout,
-                "\r{}{}{}\r{}",
-                AfterCursor,
-                prompt,
-                buffer,
-                Right((prompt.len() + offset) as u16),
-            )?;
+            if offset == 0 {
+                write!(
+                    stdout,
+                    "{}{}{}{}{}",
+                    Restore,
+                    AfterCursor,
+                    buffer,
+                    Left(buffer.len() as u16),
+                    Right(1)
+                )?;
+            } else if offset == buffer.len() {
+                write!(
+                    stdout,
+                    "{}{}{}",
+                    Restore,
+                    AfterCursor,
+                    buffer,
+                )?;
+            } else {
+                write!(
+                    stdout,
+                    "{}{}{}{}",
+                    Restore,
+                    AfterCursor,
+                    buffer,
+                    Left((buffer.len() - offset) as u16)
+                )?;
+            }
 
             stdout.flush()?;
 
