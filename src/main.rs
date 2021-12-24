@@ -54,7 +54,7 @@ fn run(command: &str, args: &[String]) -> Result<(), WrashError> {
     }
 }
 
-fn wrapped_main() -> Result<(), WrashError> {
+fn main() {
     let matches = app_from_crate!()
         .arg(
             Arg::with_name("cmd")
@@ -83,17 +83,15 @@ fn wrapped_main() -> Result<(), WrashError> {
 
     let mut session = Session::new(history, is_frozen, base, SessionMode::Wrapped);
 
-    let mut should_continue = true;
-    let mut result = Ok(());
-
     let mut stdout = std::io::stdout();
     let mut stderr = std::io::stderr();
 
     if let Err(err) = ctrlc::set_handler(|| { }) {
-        return Err(WrashError::Custom(err.to_string()));
+        eprintln!("Error: {}", err);
+        return
     }
 
-    while should_continue {
+    loop {
         let _ = io::stdout().flush();
 
         // todo: we will likely want to do the splitting ourselves or add post-processing to allow for globbing so that we can handle globs
@@ -117,7 +115,7 @@ fn wrapped_main() -> Result<(), WrashError> {
             continue;
         }
 
-        result = match argv[0].as_str() {
+        let result = match argv[0].as_str() {
             // if exit is successful the current process will be exited
             "exit" => builtins::exit(&argv),
             "cd" => builtins::cd(&mut stderr, &argv),
@@ -131,17 +129,13 @@ fn wrapped_main() -> Result<(), WrashError> {
         };
 
         session.push_to_history(cmd.as_str(), builtins::is_builtin(argv[0].as_str()));
-    }
 
-    result
-}
-
-fn main() {
-    if let Err(err) = wrapped_main() {
-        match err {
-            WrashError::NonZeroExit(n) => std::process::exit(n),
-            WrashError::FailedIo(err) => eprintln!("Error: {}", err),
-            WrashError::Custom(s) => println!("Error: {}", s),
+        if let Err(err) = result {
+            match err {
+                WrashError::NonZeroExit(_) => { },
+                WrashError::FailedIo(err) => eprintln!("Error: {}", err),
+                WrashError::Custom(s) => println!("Error: {}", s),
+            }
         }
     }
 }

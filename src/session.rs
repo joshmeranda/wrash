@@ -6,10 +6,11 @@ use std::path::{self, Component, Path};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
-use termion::cursor::{DetectCursorPos, Goto, Left, Right};
+use termion::cursor::{DetectCursorPos, Goto, Left, Restore, Right, Save};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
+use termion::color;
 
 use faccess::PathExt;
 
@@ -249,9 +250,6 @@ impl<'shell> Session<'shell> {
     }
 
     /// Take user input.
-    ///
-    /// todo: command errors overwrite prompt
-    /// todo: updating prompt or buffer overwrites any content before it
     pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
         let mut stdout = stdout.lock().into_raw_mode().unwrap();
@@ -278,15 +276,15 @@ impl<'shell> Session<'shell> {
 
         let mut was_tab_previous_key = false;
 
-        if let (x, y) = stdout.cursor_pos()? {
+        if let Ok((x, _)) = stdout.cursor_pos() {
             if x != 1 {
-                writeln!(stdout, "{}",  Left(x));
+                writeln!(stdout, "{}⏎{}\r", color::Fg(color::Red), color::Fg(color::Reset))?;
             }
         }
 
         let prompt = prompt();
 
-        write!(stdout, "{}", prompt)?;
+        write!(stdout, "{}{}", prompt, Save)?;
         stdout.flush()?;
 
         for key in stdin.keys().filter_map(Result::ok) {
@@ -390,7 +388,7 @@ impl<'shell> Session<'shell> {
                 // screen control
                 // todo: write lines and scroll rather than clearing screen
                 Key::Ctrl('l') => {
-                    write!(stdout, "\r{}{}{}", All, Right(offset as u16), Goto(1, 1),)?
+                    write!(stdout, "{}{}{}{}", All, Goto(1,1), prompt, Save)?;
                 }
 
                 // exit shell
@@ -462,15 +460,34 @@ impl<'shell> Session<'shell> {
                 _ => { /* do nothing */ }
             };
 
-            // todo: replace final carriage return + Right(...) with Left(...)
-            write!(
-                stdout,
-                "\r{}{}{}\r{}",
-                AfterCursor,
-                prompt,
-                buffer,
-                Right((prompt.len() + offset) as u16),
-            )?;
+            if offset == 0 {
+                write!(
+                    stdout,
+                    "{}{}{}{}{}",
+                    Restore,
+                    AfterCursor,
+                    buffer,
+                    Left(buffer.len() as u16),
+                    Right(1)
+                )?;
+            } else if offset == buffer.len() {
+                write!(
+                    stdout,
+                    "{}{}{}",
+                    Restore,
+                    AfterCursor,
+                    buffer,
+                )?;
+            } else {
+                write!(
+                    stdout,
+                    "{}{}{}{}",
+                    Restore,
+                    AfterCursor,
+                    buffer,
+                    Left((buffer.len() - offset) as u16)
+                )?;
+            }
 
             stdout.flush()?;
 
