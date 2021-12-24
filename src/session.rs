@@ -390,7 +390,7 @@ impl<'shell> Session<'shell> {
                 // screen control
                 // todo: write lines and scroll rather than clearing screen
                 Key::Ctrl('l') => {
-                    write!(stdout, "\r{}{}{}", All, Right(offset as u16), Goto(1, 1),)?
+                    write!(stdout, "{}{}{}{}", All, Goto(1,1), prompt, Save)?;
                 }
 
                 // exit shell
@@ -466,7 +466,7 @@ impl<'shell> Session<'shell> {
                 write!(
                     stdout,
                     "{}{}{}{}{}",
-                    Restore,
+                    Restore, // todo: replace this restore with a move
                     AfterCursor,
                     buffer,
                     Left(buffer.len() as u16),
