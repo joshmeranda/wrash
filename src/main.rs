@@ -118,11 +118,8 @@ fn wrapped_main() -> Result<(), WrashError> {
         }
 
         result = match argv[0].as_str() {
-            "exit" => {
-                // todo: differentiate between successful run of exit and failed argument parsing for exit
-                should_continue = false;
-                builtins::exit(&argv)
-            }
+            // if exit is successful the current process will be exited
+            "exit" => builtins::exit(&argv),
             "cd" => builtins::cd(&mut stderr, &argv),
             "mode" => builtins::mode(&mut stdout, &mut stderr, &mut session, &argv),
             "?" => builtins::help(&argv),
