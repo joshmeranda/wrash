@@ -64,11 +64,7 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
 
     let code: i32 = matches.value_of("code").unwrap().parse().unwrap();
 
-    if code == 0 {
-        Ok(())
-    } else {
-        Err(WrashError::NonZeroExit(code))
-    }
+    std::process::exit(code);
 }
 
 /// CD is builtin for changing the current working directory in the shell.
