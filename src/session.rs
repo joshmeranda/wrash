@@ -10,10 +10,9 @@ use termion::cursor::{DetectCursorPos, Goto, Left, Restore, Right, Save};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
+use termion::color;
 
 use faccess::PathExt;
-use termion::color;
-use termion::color::Red;
 
 use crate::history::{History, HistoryEntry, HistoryIterator};
 use crate::{completion, WrashError};
@@ -279,9 +278,9 @@ impl<'shell> Session<'shell> {
 
         let mut was_tab_previous_key = false;
 
-        if let (x, _) = stdout.cursor_pos()? {
+        if let Ok((x, _)) = stdout.cursor_pos() {
             if x != 1 {
-                writeln!(stdout, "{}{}{}\r", color::Fg(color::Red), "⏎", color::Fg(color::Reset));
+                writeln!(stdout, "{}⏎{}\r", color::Fg(color::Red), color::Fg(color::Reset))?;
             }
         }
 
