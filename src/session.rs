@@ -12,6 +12,8 @@ use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
 use faccess::PathExt;
+use termion::color;
+use termion::color::Red;
 
 use crate::history::{History, HistoryEntry, HistoryIterator};
 use crate::{completion, WrashError};
@@ -250,7 +252,6 @@ impl<'shell> Session<'shell> {
 
     /// Take user input.
     ///
-    /// todo: command errors overwrite prompt
     /// todo: updating prompt or buffer overwrites any content before it
     pub fn take_input(&mut self) -> Result<String, io::Error> {
         let stdout = io::stdout();
@@ -280,7 +281,7 @@ impl<'shell> Session<'shell> {
 
         if let (x, _) = stdout.cursor_pos()? {
             if x != 1 {
-                writeln!(stdout, "{}",  Left(x));
+                writeln!(stdout, "{}{}{}\r", color::Fg(color::Red), "⏎", color::Fg(color::Reset));
             }
         }
 
@@ -466,7 +467,7 @@ impl<'shell> Session<'shell> {
                 write!(
                     stdout,
                     "{}{}{}{}{}",
-                    Restore, // todo: replace this restore with a move
+                    Restore,
                     AfterCursor,
                     buffer,
                     Left(buffer.len() as u16),
