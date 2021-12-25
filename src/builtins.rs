@@ -36,8 +36,11 @@ pub fn is_builtin(command: &str) -> bool {
     matches!(command, "exit" | "cd" | "mode" | "help" | "history")
 }
 
-/// Exit is a builtin for exiting out of the current shell session.
-pub fn exit(argv: &[String]) -> BuiltinResult {
+/// With no clear way to distinguish between the exit builtin exiting with a
+/// non-zero status code due to bad arguments or proper execution, and no clean
+/// and simple way to test a call to `std::process::exit` we wrap this method
+/// using `exit` by passing in an `exiter` closure.
+fn inner_exit<F: FnOnce(i32)>(argv: &[String], exiter: F) -> BuiltinResult {
     let app = app_from_crate!()
         .name("exit")
         .about("exit the shell with the given status code")
@@ -64,7 +67,21 @@ pub fn exit(argv: &[String]) -> BuiltinResult {
 
     let code: i32 = matches.value_of("code").unwrap().parse().unwrap();
 
-    std::process::exit(code);
+    exiter(code);
+
+    // this segment is likely only called in tests
+    if code == 0 {
+        Ok(())
+    } else {
+        Err(WrashError::NonZeroExit(code))
+    }
+}
+
+/// Exit is a builtin for exiting out of the current shell session.
+pub fn exit(argv: &[String]) -> BuiltinResult {
+    inner_exit(argv, |n| std::process::exit(n));
+
+    unreachable!()
 }
 
 /// CD is builtin for changing the current working directory in the shell.
@@ -92,7 +109,7 @@ pub fn cd(err_writer: &mut impl Write, argv: &[String]) -> BuiltinResult {
     };
 
     if let Err(err) = std::env::set_current_dir(target) {
-        writeln!(err_writer, "Error cahnging directory: {}", err)?;
+        writeln!(err_writer, "Error changing directory: {}", err)?;
         Err(WrashError::FailedIo(err))
     } else {
         Ok(())
@@ -292,29 +309,36 @@ pub fn history(
 #[cfg(test)]
 mod tests {
     mod test_exit {
+        use std::process::Command;
         use crate::builtins;
         use crate::error::WrashError;
 
         #[test]
         fn test_exit_no_arg() {
+            let expected_exit_code = 0;
+
             let expected = Ok(());
-            let actual = builtins::exit(&["exit".to_string()]);
+            let actual = builtins::inner_exit(&["exit".to_string()], |actual_exit_code| assert_eq!(expected_exit_code, actual_exit_code));
 
             assert_eq!(expected, actual);
         }
 
         #[test]
         fn test_exit_zero() {
+            let expected_exit_code = 0;
+
             let expected = Ok(());
-            let actual = builtins::exit(&["0".to_string()]);
+            let actual = builtins::inner_exit(&["0".to_string()], |actual_exit_code| assert_eq!(expected_exit_code, actual_exit_code));
 
             assert_eq!(expected, actual);
         }
 
         #[test]
         fn test_exit_1() {
+            let expected_exit_code = 1;
+
             let expected = Err(WrashError::NonZeroExit(1));
-            let actual = builtins::exit(&["exit".to_string(), "1".to_string()]);
+            let actual = builtins::inner_exit(&["exit".to_string(), "1".to_string()], |actual_exit_code| assert_eq!(expected_exit_code, actual_exit_code));
 
             assert_eq!(expected, actual);
         }
@@ -322,7 +346,7 @@ mod tests {
         #[test]
         fn test_exit_neg_1() {
             let expected = Err(WrashError::NonZeroExit(1));
-            let actual = builtins::exit(&["exit".to_string(), "-1".to_string()]);
+            let actual = builtins::inner_exit(&["exit".to_string(), "nan".to_string()], |_| { });
 
             assert_eq!(expected, actual);
         }
@@ -330,7 +354,7 @@ mod tests {
         #[test]
         fn test_exit_non_number() {
             let expected = Err(WrashError::NonZeroExit(1));
-            let actual = builtins::exit(&["exit".to_string(), "nan".to_string()]);
+            let actual = builtins::inner_exit(&["exit".to_string(), "nan".to_string()], |_| { });
 
             assert_eq!(expected, actual);
         }
@@ -357,7 +381,7 @@ mod tests {
             assert_eq!(expected, actual);
 
             let expected_err =
-                String::from("Error cahnging directory: No such file or directory (os error 2)\n");
+                String::from("Error changing directory: No such file or directory (os error 2)\n");
             let actual_err = String::from_utf8(err.into_inner()?).unwrap();
 
             assert_eq!(expected_err, actual_err);
@@ -564,7 +588,7 @@ mod tests {
 
             assert_eq!(expected_out, actual_out);
 
-            let expected_err = String::from("Error: could not set session mode, session is frozen");
+            let expected_err = String::from("Error: could not set session mode, session is frozen\n");
             let actual_err = String::from_utf8(err.into_inner()?).unwrap();
 
             assert_eq!(expected_err, actual_err);
@@ -594,7 +618,7 @@ mod tests {
 
             assert_eq!(expected_out, actual_out);
 
-            let expected_err = String::from("Error: could not set session mode, session is frozen");
+            let expected_err = String::from("Error: could not set session mode, session is frozen\n");
             let actual_err = String::from_utf8(err.into_inner()?).unwrap();
 
             assert_eq!(expected_err, actual_err);
