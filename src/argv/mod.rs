@@ -60,6 +60,7 @@ impl <'a> Split<'a> {
         }
     }
 
+    /// Skip all whitespace in `source` while incrementing `offset`.
     fn skip_whitespace(&mut self) {
         while let Some(c) = self.source.chars().nth(self.offset) {
             if ! c.is_whitespace() {
@@ -76,7 +77,7 @@ impl <'a> Iterator for Split<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // if we have already encountered a parsing error we don't need to continue
-        if self.has_err {
+        if self.has_err || self.offset >= self.source.len() {
             return None
         }
 
@@ -87,27 +88,38 @@ impl <'a> Iterator for Split<'a> {
             // check the first character for the first step
             match c {
                 '\'' =>
-                    if let Some(n) = self.source.find(|c| c == '\'') {
-                        self.offset = n;
-                        Some(Ok(&self.source[self.offset..n + 1]))
+                    if let Some(n) = self.source[self.offset + 1..].find(|c| c == '\'') {
+                        let r = Some(Ok(&self.source[self.offset..n + 1]));
+                        self.offset = n + 1;
+
+                        r
                     } else {
+                        self.has_err = true;
                         Some(Err(ArgumentError::UnterminatedSequence('\'')))
                     },
                 '"' =>
-                    if let Some(n) = self.source.find(|c| c == '"') {
-                        self.offset = n;
-                        Some(Ok(&self.source[self.offset..n + 1]))
+                    if let Some(n) = self.source[self.offset + 1..].find(|c| c == '"') {
+                        let r = Some(Ok(&self.source[self.offset..n + 1]));
+                        self.offset = n + 1;
+
+                        r
                     } else {
+                        self.has_err = true;
                         Some(Err(ArgumentError::UnterminatedSequence('"')))
                     },
                 _ => if let Some((n, _)) = find_with_previous(&mut chars.enumerate(),
                     |o| if let Some((_, c)) = o { *c != '\\' } else { true },
                     |(_, c)| c.is_whitespace()
                 ) {
-                    self.offset = n;
-                    Some(Ok(&self.source[self.offset..n + 1]))
+                    let r = Some(Ok(&self.source[self.offset..self.offset + n + 1]));
+                    self.offset += n + 1;
+
+                    r
                 } else {
-                    Some(Ok(&self.source[self.offset..]))
+                    let r = Some(Ok(&self.source[self.offset..]));
+                    self.offset = self.source.len();
+
+                    r
                 }
             }
         } else {
@@ -118,7 +130,7 @@ impl <'a> Iterator for Split<'a> {
 
 /// Split a full list of command line arguments into their separate args.
 ///
-/// todo: ideally we could return an `impl iterator` to hid out internal `Split` struct.
+/// todo: ideally we could return an `impl iterator` to hide our internal `Split` struct.
 fn split(source: &str) -> Split {
     Split::new(source)
 }
@@ -165,7 +177,7 @@ mod test {
         }
 
         #[test]
-        fn test_unterminated_string() -> Result<(), Box<dyn std::error::Error>> {
+        fn test_unterminated_single_string() -> Result<(), Box<dyn std::error::Error>> {
             let source = "cmd a 'b c";
             let mut actual = argv::split(source);
 
@@ -175,6 +187,35 @@ mod test {
                 Some(Err(ArgumentError::UnterminatedSequence('\''))),
                 actual.next()
             );
+            assert_eq!(None, actual.next());
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_unterminated_double_string() -> Result<(), Box<dyn std::error::Error>> {
+            let source = "cmd a \"b c";
+            let mut actual = argv::split(source);
+
+            assert_eq!(Some(Ok("cmd")), actual.next());
+            assert_eq!(Some(Ok("a")), actual.next());
+            assert_eq!(
+                Some(Err(ArgumentError::UnterminatedSequence('\"'))),
+                actual.next()
+            );
+            assert_eq!(None, actual.next());
+
+            Ok(())
+        }
+
+        #[test]
+        fn test_unterminated_mixed() -> Result<(), Box<dyn std::error::Error>> {
+            let source = "cmd a b\\ 'c'";
+            let mut actual = argv::split(source);
+
+            assert_eq!(Some(Ok("cmd")), actual.next());
+            assert_eq!(Some(Ok("a")), actual.next());
+            assert_eq!(Some(Ok("b\\ 'c'")), actual.next());
             assert_eq!(None, actual.next());
 
             Ok(())
