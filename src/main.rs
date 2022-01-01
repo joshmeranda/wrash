@@ -9,6 +9,7 @@ mod completion;
 mod error;
 mod history;
 mod session;
+mod argv;
 
 use std::env;
 use std::io::{self, Write};
