@@ -7,33 +7,37 @@ fn expand_vars(arg: &str) -> Result<String, ArgumentError> {
     let mut last = 0;
 
     while let Some((i, c)) = chars.next() {
-        if c == '$' {
-            if i != 0 {
-                expanded.push_str(&arg[last..i]);
-            }
+        match c {
+            '$' => {
+                if i != 0 {
+                    expanded.push_str(&arg[last..i]);
+                }
 
-            let (name, next) = match chars.peek() {
-                None => return Err(ArgumentError::UnterminatedSequence('$')),
-                Some((_, '{')) => {
-                    if let Some(n) = arg[i + 1..].find('}') {
-                        (&arg[i + 2..i + n + 1], i + n + 2)
-                    } else {
-                        return Err(ArgumentError::UnterminatedSequence('{'))
-                    }
-                },
-                Some((_, _)) => {
-                    if let Some(n) = arg[i + 1..].find(|c: char| !c.is_alphanumeric() && c != '_') {
-                        (&arg[i + 1..i + n + 1], i + n + 1)
-                    } else {
-                        (&arg[i + 1..], arg.len())
-                    }
-                },
-            };
-            let value = env::var(name).unwrap_or_else(|_| String::new());
+                let (name, next) = match chars.peek() {
+                    None => return Err(ArgumentError::UnterminatedSequence('$')),
+                    Some((_, '{')) => {
+                        if let Some(n) = arg[i + 1..].find('}') {
+                            (&arg[i + 2..i + n + 1], i + n + 2)
+                        } else {
+                            return Err(ArgumentError::UnterminatedSequence('{'))
+                        }
+                    },
+                    Some((_, _)) => {
+                        if let Some(n) = arg[i + 1..].find(|c: char| !c.is_alphanumeric() && c != '_') {
+                            (&arg[i + 1..i + n + 1], i + n + 1)
+                        } else {
+                            (&arg[i + 1..], arg.len())
+                        }
+                    },
+                };
+                let value = env::var(name).unwrap_or_else(|_| String::new());
 
-            expanded.push_str(value.as_str());
+                expanded.push_str(value.as_str());
 
-            last = next;
+                last = next;
+            },
+            '\'' => { chars.find(|(_, c)| *c == '\''); },
+            _ => { /* do nothing */ },
         }
     }
 
@@ -116,6 +120,26 @@ mod test {
 
             let expected = Ok("a b c".to_string());
             let actual = expand::expand_vars("$A b ${C}");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_expansion_in_double_quotes() {
+            env::set_var("A", "a");
+
+            let expected = Ok("\"a\"".to_string());
+            let actual = expand::expand_vars("\"${A}\"");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_expansion_in_single_quotes() {
+            env::set_var("A", "a");
+
+            let expected = Ok("'${A}'".to_string());
+            let actual = expand::expand_vars("'${A}'");
 
             assert_eq!(expected, actual);
         }
