@@ -1,6 +1,47 @@
-/// Expands all parameter expansions
-fn expand_vars(arg: &str) -> String {
-    todo!()
+use std::env;
+use crate::argv::error::ArgumentError;
+
+fn expand_vars(arg: &str) -> Result<String, ArgumentError> {
+    let mut expanded = String::new();
+    let mut chars = arg.chars().enumerate().peekable();
+    let mut last = 0;
+
+    while let Some((i, c)) = chars.next() {
+        if c == '$' {
+            if i != 0 {
+                expanded.push_str(&arg[last..i]);
+            }
+
+            let (name, next) = match chars.peek() {
+                None => return Err(ArgumentError::UnterminatedSequence('$')),
+                Some((_, '{')) => {
+                    if let Some(n) = arg[i + 1..].find('}') {
+                        (&arg[i + 2..i + n + 1], i + n + 2)
+                    } else {
+                        return Err(ArgumentError::UnterminatedSequence('{'))
+                    }
+                },
+                Some((_, _)) => {
+                    if let Some(n) = arg[i + 1..].find(|c: char| !c.is_alphanumeric() && c != '_') {
+                        (&arg[i + 1..i + n + 1], i + n + 1)
+                    } else {
+                        (&arg[i + 1..], arg.len())
+                    }
+                },
+            };
+            let value = env::var(name).unwrap_or_else(|_| String::new());
+
+            expanded.push_str(value.as_str());
+
+            last = next;
+        }
+    }
+
+    if last < arg.len() {
+        expanded.push_str(&arg[last..]);
+    }
+
+    Ok(expanded)
 }
 
 fn expand_quotes(arg: &str) -> String {
@@ -15,16 +56,25 @@ fn expand(arg: &str) -> Vec<String> {
     todo!()
 }
 
-#[cfg(test)]dd
+#[cfg(test)]
 mod test {
+    use std::path::PathBuf;
+
+    fn get_resource_path(components: &[&str]) -> PathBuf {
+        vec!["tests", "resources"]
+            .iter()
+            .chain(components.iter())
+            .collect()
+    }
+
     mod test_vars {
         use std::env;
         use crate::argv::expand;
 
         #[test]
         fn test_no_vars() {
-            let expected = "abcd".to_string();
-            let expected = expand::expand_vars("abcd");
+            let expected = Ok("abcd".to_string());
+            let actual = expand::expand_vars("abcd");
 
             assert_eq!(expected, actual);
         }
@@ -33,7 +83,7 @@ mod test {
         fn test_var_with_curly() {
             env::set_var("A", "a");
 
-            let expected = "a".to_string();
+            let expected = Ok("a".to_string());
             let actual = expand::expand_vars("${A}");
 
             assert_eq!(expected, actual);
@@ -43,7 +93,7 @@ mod test {
         fn test_var_no_curly() {
             env::set_var("A", "a");
 
-            let expected = "a".to_string();
+            let expected = Ok("a".to_string());
             let actual = expand::expand_vars("$A");
 
             assert_eq!(expected, actual);
@@ -53,7 +103,7 @@ mod test {
         fn test_leading_var_with_curly() {
             env::set_var("A", "a");
 
-            let expected = "abc".to_string();
+            let expected = Ok("abc".to_string());
             let actual = expand::expand_vars("${A}bc");
 
             assert_eq!(expected, actual);
@@ -64,7 +114,7 @@ mod test {
             env::set_var("A", "a");
             env::set_var("C", "c");
 
-            let expected = "a b c".to_string();
+            let expected = Ok("a b c".to_string());
             let actual = expand::expand_vars("$A b ${C}");
 
             assert_eq!(expected, actual);
@@ -103,17 +153,10 @@ mod test {
     }
 
     mod test_globs {
-        use crate::argv::expand::Expander;
         use crate::argv::{expand, split};
         use std::env;
         use std::path::PathBuf;
-
-        fn get_resource_path(components: &[&str]) -> PathBuf {
-            vec!["tests", "resources"]
-                .iter()
-                .chain(components.iter())
-                .collect()
-        }
+        use crate::argv::expand::test::get_resource_path;
 
         #[test]
         fn test_existing_glob() -> Result<(), Box<dyn std::error::Error>> {
@@ -143,7 +186,7 @@ mod test {
             let old_cwd = env::current_dir()?;
             let new_cwd = get_resource_path(&["a_directory"]);
 
-            let expected = vec![];
+            let expected: Vec<String> = vec![];
 
             env::set_current_dir(new_cwd)?;
             let actual = expand::expand(arg);
@@ -158,6 +201,7 @@ mod test {
     mod test_expand {
         use std::env;
         use crate::argv::expand;
+        use crate::argv::expand::test::get_resource_path;
 
         #[ignore]
         #[test]
