@@ -48,6 +48,7 @@ impl <'a> Iterator for Split<'a> {
         if let Some(c) = chars.nth(self.offset) {
             // check the first character for the first step
             match c {
+                // todo: combine both quoting branches toigether usine `c` instead o f each quote chracer individually
                 '\'' =>
                     if let Some(n) = self.source[self.offset + 1..].find(|c| c == '\'') {
                         let r = Some(Ok(&self.source[self.offset..n + 1]));

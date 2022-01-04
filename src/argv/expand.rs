@@ -1,7 +1,8 @@
 use std::env;
 use crate::argv::error::ArgumentError;
 
-fn expand_vars(arg: &str) -> Result<String, ArgumentError> {
+/// Expand all found parameter expansions, bot in and outside of double quotes.
+fn expand_vars(arg: &str) -> Result<String, ArgumentError>{
     let mut expanded = String::new();
     let mut chars = arg.chars().enumerate().peekable();
     let mut last = 0;
@@ -48,8 +49,44 @@ fn expand_vars(arg: &str) -> Result<String, ArgumentError> {
     Ok(expanded)
 }
 
-fn expand_quotes(arg: &str) -> String {
-    todo!()
+/// Remove all non-escaped strings.
+fn expand_quotes(arg: &str) -> Result<String, ArgumentError> {
+    let mut expanded = String::new();
+    let mut chars = arg.chars();
+
+    let mut is_single_quote = false;
+    let mut is_double_quote = false;
+
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' => if ! is_double_quote {
+                is_single_quote = ! is_single_quote;
+            } else {
+                expanded.push(c);
+            },
+            '"' => if ! is_single_quote {
+                is_double_quote = ! is_double_quote;
+            } else {
+                expanded.push(c);
+            },
+            '*' | '?' => {
+                expanded.push('\\');
+                expanded.push(c);
+            },
+            '\\' => if let Some(c) = chars.next() {
+                if matches!(c, '"' | '\'' | ' ') {
+                    expanded.push(c);
+                } else {
+                    return Err(ArgumentError::InvalidEscape(c))
+                }
+            } else {
+                return Err(ArgumentError::UnexpectedEndOfLine)
+            },
+            _ => expanded.push(c)
+        }
+    }
+
+    Ok(expanded)
 }
 
 fn expand_globs(arg: &str) -> Vec<String> {
@@ -151,7 +188,7 @@ mod test {
 
         #[test]
         fn test_expand_single() {
-            let expected = "abc".to_string();
+            let expected = Ok("abc".to_string());
             let actual = expand::expand_quotes("a'b'c");
 
             assert_eq!(expected, actual);
@@ -159,18 +196,31 @@ mod test {
 
         #[test]
         fn test_expand_double() {
-            let expected = "abc".to_string();
+            let expected = Ok("abc".to_string());
             let actual = expand::expand_quotes("a\"b\"c");
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn test_expand_double_with_var() {
-            env::set_var("B", "b");
+        fn test_single_quote_inside_double() {
+            let expected = Ok("a'bc".to_string());
+            let actual = expand::expand_quotes("a\"'\"bc");
 
-            let expected = "abc".to_string();
-            let actual = expand::expand_quotes("a\"B\"c");
+            assert_eq!(expected, actual);
+        }
+        #[test]
+        fn test_single_escaped_quote_inside_double() {
+            let expected = Ok("a\"bc".to_string());
+            let actual = expand::expand_quotes("a\"\\\"\"bc");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_expand_escaped_quote() {
+            let expected = Ok("a'bc".to_string());
+            let actual = expand::expand_quotes("a\\'bc");
 
             assert_eq!(expected, actual);
         }
