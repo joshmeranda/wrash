@@ -2,6 +2,62 @@ use std::env;
 use std::path::Path;
 
 use crate::argv::error::ArgumentError;
+use crate::argv;
+
+// todo: consider better way to validate sequences (escapes, quotes, expansions). right now the same
+//       checks are repeated in multiple methods
+
+/// Replace all non-quoted  and non-escaped tildes with the user's home
+/// directory.The `provider` should be a simple method that returns the user's
+/// home directory as a string, or None if the home directory could not be
+/// determined. If the user's home directory could not be determined, the tilde
+/// is not expanded and left as-is.
+fn expand_tilde<F>(source: &str, provider: F) -> Result<String, ArgumentError>
+    where F: FnOnce() -> Option<String>,
+{
+    if ! source.contains('~') {
+        println!("=== [expand-tilde] {:?} {:?} ===", source, source.contains('~'));
+
+        Ok(source.to_string())
+    } else {
+        let mut expanded = String::new();
+        let mut chars = source.chars().enumerate();
+
+        let home = match provider() {
+            Some(home) => home,
+            None => "~".to_string(),
+        };
+
+        while let Some((start, c)) = chars.next() {
+            println!("=== [expand-tilde] {:?} ===", c);
+            match c {
+                 '\'' | '"' => {
+                     if let Some((end, _)) = argv::find_with_previous(
+                         &mut chars,
+                         |o| if let Some((_, c)) = o { *c != '\\' } else { true },
+                         |(_, current)| *current == c
+                     ) {
+                         expanded.push_str(&source[start..end + 1]);
+                     } else {
+                         return Err(ArgumentError::UnterminatedSequence(c))
+                     }
+                 },
+                '\\' => match chars.next() {
+                    Some((_, '~')) => expanded.push('~'),
+                    Some((_, c)) => {
+                        expanded.push('\\');
+                        expanded.push(c);
+                    },
+                    None => return Err(ArgumentError::UnterminatedSequence('\\')),
+                },
+                '~' => expanded.push_str(home.as_str()),
+                _ => expanded.push(c),
+            }
+        }
+
+        Ok(expanded)
+    }
+}
 
 /// Expand all found parameter expansions, bot in and outside of double quotes.
 fn expand_vars(source: &str) -> Result<String, ArgumentError>{
@@ -173,6 +229,51 @@ mod test {
             .iter()
             .chain(components.iter())
             .collect()
+    }
+
+    mod test_tilde {
+        use std::env;
+        use crate::argv::expand;
+
+        #[test]
+        fn test_simple() {
+            let expected = Ok("HOME".to_string());
+            let actual = expand::expand_tilde("~", || Some("HOME".to_string()));
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_simple_with_child() {
+            let expected = Ok("HOME/a".to_string());
+            let actual = expand::expand_tilde("~/a", || Some("HOME".to_string()));
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_quoted() {
+            let expected = Ok("'~'/a".to_string());
+            let actual = expand::expand_tilde("'~'/a", || Some("HOME".to_string()));
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_escaped() {
+            let expected = Ok("~/a".to_string());
+            let actual = expand::expand_tilde("\\~/a", || Some("HOME".to_string()));
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_no_home() {
+            let expected = Ok("~".to_string());
+            let actual = expand::expand_tilde("~", || None);
+
+            assert_eq!(expected, actual)
+        }
     }
 
     mod test_vars {
@@ -369,7 +470,7 @@ mod test {
         }
     }
 
-    /*mod test_expand {
+    mod test_expand {
         use std::env;
         use crate::argv::expand;
         use crate::argv::expand::test::get_resource_path;
@@ -464,5 +565,5 @@ mod test {
 
             Ok(())
         }
-    }*/
+    }
 }

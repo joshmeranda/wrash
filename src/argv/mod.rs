@@ -12,11 +12,11 @@ mod expand;
 /// value, and `g` to test the current value (including the the first value).
 /// `f` takes an optional to allow you to specify whether a `true` return from
 /// `g` on the first element will stop any further iteration or not.
-fn find_with_previous<I, F, G>(iterator: &mut I, mut f: F, mut g: G) -> Option<I::Item>
+fn find_with_previous<I, F, G>(iterator: &mut I, f: F, g: G) -> Option<I::Item>
     where
         I: Iterator,
-        F: FnMut(Option<&I::Item>) -> bool,
-        G: FnMut(&I::Item) -> bool,
+        F: Fn(Option<&I::Item>) -> bool,
+        G: Fn(&I::Item) -> bool,
 {
     let mut current: Option<I::Item> = iterator.next();
 
