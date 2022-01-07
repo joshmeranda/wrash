@@ -1,33 +1,35 @@
 use std::env;
+use std::path::Path;
+
 use crate::argv::error::ArgumentError;
 
 /// Expand all found parameter expansions, bot in and outside of double quotes.
-fn expand_vars(arg: &str) -> Result<String, ArgumentError>{
+fn expand_vars(source: &str) -> Result<String, ArgumentError>{
     let mut expanded = String::new();
-    let mut chars = arg.chars().enumerate().peekable();
+    let mut chars = source.chars().enumerate().peekable();
     let mut last = 0;
 
     while let Some((i, c)) = chars.next() {
         match c {
             '$' => {
                 if i != 0 {
-                    expanded.push_str(&arg[last..i]);
+                    expanded.push_str(&source[last..i]);
                 }
 
                 let (name, next) = match chars.peek() {
                     None => return Err(ArgumentError::UnterminatedSequence('$')),
                     Some((_, '{')) => {
-                        if let Some(n) = arg[i + 1..].find('}') {
-                            (&arg[i + 2..i + n + 1], i + n + 2)
+                        if let Some(n) = source[i + 1..].find('}') {
+                            (&source[i + 2..i + n + 1], i + n + 2)
                         } else {
                             return Err(ArgumentError::UnterminatedSequence('{'))
                         }
                     },
                     Some((_, _)) => {
-                        if let Some(n) = arg[i + 1..].find(|c: char| !c.is_alphanumeric() && c != '_') {
-                            (&arg[i + 1..i + n + 1], i + n + 1)
+                        if let Some(n) = source[i + 1..].find(|c: char| !c.is_alphanumeric() && c != '_') {
+                            (&source[i + 1..i + n + 1], i + n + 1)
                         } else {
-                            (&arg[i + 1..], arg.len())
+                            (&source[i + 1..], source.len())
                         }
                     },
                 };
@@ -42,17 +44,17 @@ fn expand_vars(arg: &str) -> Result<String, ArgumentError>{
         }
     }
 
-    if last < arg.len() {
-        expanded.push_str(&arg[last..]);
+    if last < source.len() {
+        expanded.push_str(&source[last..]);
     }
 
     Ok(expanded)
 }
 
 /// Remove all non-escaped strings.
-fn expand_quotes(arg: &str) -> Result<String, ArgumentError> {
+fn expand_quotes(source: &str) -> Result<String, ArgumentError> {
     let mut expanded = String::new();
-    let mut chars = arg.chars();
+    let mut chars = source.chars();
 
     let mut is_single_quote = false;
     let mut is_double_quote = false;
@@ -74,7 +76,7 @@ fn expand_quotes(arg: &str) -> Result<String, ArgumentError> {
                 expanded.push(c);
             },
             '\\' => if let Some(c) = chars.next() {
-                if matches!(c, '"' | '\'' | ' ') {
+                if matches!(c, '"' | '\'' | ' ' | '~') {
                     expanded.push(c);
                 } else {
                     return Err(ArgumentError::InvalidEscape(c))
@@ -89,11 +91,76 @@ fn expand_quotes(arg: &str) -> Result<String, ArgumentError> {
     Ok(expanded)
 }
 
-fn expand_globs(arg: &str) -> Vec<String> {
-    todo!()
+fn is_pattern(s: &str) -> bool {
+    let mut chars = s.chars();
+
+    while let Some(c) = chars.next() {
+        match c {
+            '?' | '*' | '[' => return true,
+            '\\' => { chars.next(); },
+            _ => {}
+        }
+    }
+
+    false
 }
 
-fn expand(arg: &str) -> Vec<String> {
+/// Check each arg in `argv` and if it contains any of `*`, `?`, or `[` it is
+/// regarded as a glob and will be expanded. If there are matches to the
+/// pattern on the filesystem, the raw pattern string will be returned.
+fn expand_filenames(argv: Vec<String>) -> Vec<String> {
+    let mut expanded = vec![];
+
+    for arg in argv {
+        if ! is_pattern(arg.as_str()) {
+            expanded.push(arg);
+        } else if let Ok(mut paths) = glob::glob(arg.as_str()) {
+            println!("=== [expand_filenames] {:?} ===", arg);
+
+            let mut found: Vec<String> = paths
+                .filter_map(|r| match r {
+                    Ok(p) => Some(p.to_string_lossy().to_string()),
+                    Err(_) => None
+                }).collect();
+
+            if found.is_empty() {
+                expanded.push(arg);
+            } else {
+                expanded.append(&mut found);
+            }
+        }
+    }
+
+    expanded
+}
+
+/// Expands a line of input in a similar order to Bash as described in the
+/// [Shell Expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html)
+/// section of the documentation:
+///
+/// > The order of expansions is: brace expansion; tilde expansion, parameter
+/// and variable expansion, arithmetic expansion, and command substitution
+/// (done in a left-to-right fashion); word splitting; and filename expansion.
+/// >
+/// > On systems that can support it, there is an additional expansion available:
+/// process substitution. This is performed at the same time as tilde,
+/// parameter, variable, and arithmetic expansion and command substitution.
+/// >
+/// > After these expansions are performed, quote characters present in the
+/// original word are removed unless they have been quoted themselves (quote
+/// removal).
+///
+/// Since wrash does not support [Brace Expansion](https://www.gnu.org/software/bash/manual/html_node/Brace-Expansion.html),
+/// [Command Substitution](https://www.gnu.org/software/bash/manual/html_node/Command-Substitution.html),
+/// [Arithmetic Expansion](https://www.gnu.org/software/bash/manual/html_node/Arithmetic-Expansion.html),
+/// or [Process Substitution](https://www.gnu.org/software/bash/manual/html_node/Process-Substitution.html)
+/// those steps are ignored.
+///
+/// todo: tilde (~) expansion
+/// todo: variable / parameter expansion
+/// todo: word splitting
+/// todo: filename expansion
+fn expand(source: &str) -> Vec<String> {
     todo!()
 }
 
@@ -209,6 +276,7 @@ mod test {
 
             assert_eq!(expected, actual);
         }
+
         #[test]
         fn test_single_escaped_quote_inside_double() {
             let expected = Ok("a\"bc".to_string());
@@ -224,17 +292,26 @@ mod test {
 
             assert_eq!(expected, actual);
         }
+
+        #[test]
+        fn test_quoted_glob_character() {
+            let expected = Ok("a\\*b".to_string());
+            let actual = expand::expand_quotes("a'*'b");
+
+            assert_eq!(expected, actual);
+        }
     }
 
-    mod test_globs {
+    mod test_filename {
         use crate::argv::{expand, split};
         use std::env;
         use std::path::PathBuf;
         use crate::argv::expand::test::get_resource_path;
 
+        #[ignore]
         #[test]
         fn test_existing_glob() -> Result<(), Box<dyn std::error::Error>> {
-            let arg = "a*file";
+            let args = vec!["a*file".to_string()];
 
             let old_cwd = env::current_dir()?;
             let new_cwd = get_resource_path(&["a_directory"]);
@@ -245,7 +322,7 @@ mod test {
             ];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(arg);
+            let actual = expand::expand_filenames(args);
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -253,17 +330,37 @@ mod test {
             Ok(())
         }
 
+        #[ignore]
         #[test]
-        fn test_no_existing_glob() -> Result<(), Box<dyn std::error::Error>> {
-            let arg = "b*file";
+        fn test_escaped_glob_no_existing() -> Result<(), Box<dyn std::error::Error>> {
+            let args = vec!["a\\*file".to_string()];
 
             let old_cwd = env::current_dir()?;
             let new_cwd = get_resource_path(&["a_directory"]);
 
-            let expected: Vec<String> = vec![];
+            let expected = vec!["a\\*file".to_string()];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(arg);
+            let actual = expand::expand_filenames(args);
+            env::set_current_dir(old_cwd)?;
+
+            assert_eq!(expected, actual);
+
+            Ok(())
+        }
+
+        #[ignore]
+        #[test]
+        fn test_no_existing_glob() -> Result<(), Box<dyn std::error::Error>> {
+            let args = vec!["b*file".to_string()];
+
+            let old_cwd = env::current_dir()?;
+            let new_cwd = get_resource_path(&["a_directory"]);
+
+            let expected = vec!["b*file".to_string()];
+
+            env::set_current_dir(new_cwd)?;
+            let actual = expand::expand_filenames(args);
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -272,7 +369,7 @@ mod test {
         }
     }
 
-    mod test_expand {
+    /*mod test_expand {
         use std::env;
         use crate::argv::expand;
         use crate::argv::expand::test::get_resource_path;
@@ -280,7 +377,7 @@ mod test {
         #[ignore]
         #[test]
         fn test_glob_with_string() -> Result<(), Box<dyn std::error::Error>> {
-            let arg = "a*file'abc'";
+            let source = "a*file'abc'";
 
             let old_cwd = env::current_dir()?;
             let new_cwd = get_resource_path(&["a_directory"]);
@@ -291,7 +388,7 @@ mod test {
             ];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(arg);
+            let actual = expand::expand(source);
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -302,7 +399,7 @@ mod test {
         #[ignore]
         #[test]
         fn test_expand_single_quoted_glob() -> Result<(), Box<dyn std::error::Error>> {
-            let arg = "'a*file'";
+            let source = "'a*file'";
 
             let old_cwd = env::current_dir()?;
             let new_cwd = get_resource_path(&["a_directory"]);
@@ -310,7 +407,7 @@ mod test {
             let expected = vec!["a*file".to_string()];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(arg);
+            let actual = expand::expand(source);
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -321,7 +418,7 @@ mod test {
         #[ignore]
         #[test]
         fn test_expand_with_double_quoted_glob() -> Result<(), Box<dyn std::error::Error>> {
-            let arg = "\"a*file\"";
+            let source = "\"a*file\"";
 
             let old_cwd = env::current_dir()?;
             let new_cwd = get_resource_path(&["a_directory"]);
@@ -329,7 +426,7 @@ mod test {
             let expected = vec!["a*file".to_string()];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(arg);
+            let actual = expand::expand(source);
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -340,7 +437,7 @@ mod test {
         #[ignore]
         #[test]
         fn test_expand_glob_no_quotes() -> Result<(), Box<dyn std::error::Error>> {
-            let arg = "a*file";
+            let source = "a*file";
 
             let old_cwd = env::current_dir()?;
             let new_cwd = get_resource_path(&["a_directory"]);
@@ -348,7 +445,7 @@ mod test {
             let expected = vec![String::new()];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(arg);
+            let actual = expand::expand(source);
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -358,14 +455,14 @@ mod test {
 
         #[test]
         fn test_expand_mid_word_quotes() -> Result<(), Box<dyn std::error::Error>> {
-            let arg = "a'_'file";
+            let source = "a'_'file";
 
             let expected = vec!["a_file".to_string()];
-            let actual = expand::expand_globs(arg);
+            let actual = expand::expand(source);
 
             assert_eq!(expected, actual);
 
             Ok(())
         }
-    }
+    }*/
 }

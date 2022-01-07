@@ -1,3 +1,5 @@
+// todo: all documentation could be cleaned up.
+
 #[macro_use]
 extern crate clap;
 
