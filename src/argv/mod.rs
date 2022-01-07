@@ -4,7 +4,6 @@ use clap::Arg;
 use crate::argv::error::ArgumentError;
 
 mod error;
-mod split;
 mod expand;
 
 /// Provides much of the same functionality as `Iterator::find` but also

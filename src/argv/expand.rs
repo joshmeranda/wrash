@@ -16,8 +16,6 @@ fn expand_tilde<F>(source: &str, provider: F) -> Result<String, ArgumentError>
     where F: FnOnce() -> Option<String>,
 {
     if ! source.contains('~') {
-        println!("=== [expand-tilde] {:?} {:?} ===", source, source.contains('~'));
-
         Ok(source.to_string())
     } else {
         let mut expanded = String::new();
@@ -29,7 +27,6 @@ fn expand_tilde<F>(source: &str, provider: F) -> Result<String, ArgumentError>
         };
 
         while let Some((start, c)) = chars.next() {
-            println!("=== [expand-tilde] {:?} ===", c);
             match c {
                  '\'' | '"' => {
                      if let Some((end, _)) = argv::find_with_previous(
@@ -107,44 +104,39 @@ fn expand_vars(source: &str) -> Result<String, ArgumentError>{
     Ok(expanded)
 }
 
-/// Remove all non-escaped strings.
-fn expand_quotes(source: &str) -> Result<String, ArgumentError> {
-    let mut expanded = String::new();
-    let mut chars = source.chars();
+/// Split a line into its individual words.
+fn split_words(source: &str) -> Vec<&str> {
+    let mut words = vec![];
+    let mut chars = source.chars().enumerate();
+    let mut last = 0;
 
-    let mut is_single_quote = false;
-    let mut is_double_quote = false;
-
-    while let Some(c) = chars.next() {
+    while let Some((i, c)) = chars.next() {
         match c {
-            '\'' => if ! is_double_quote {
-                is_single_quote = ! is_single_quote;
-            } else {
-                expanded.push(c);
-            },
-            '"' => if ! is_single_quote {
-                is_double_quote = ! is_double_quote;
-            } else {
-                expanded.push(c);
-            },
-            '*' | '?' => {
-                expanded.push('\\');
-                expanded.push(c);
-            },
-            '\\' => if let Some(c) = chars.next() {
-                if matches!(c, '"' | '\'' | ' ' | '~') {
-                    expanded.push(c);
+            ' ' | '\t' => {
+                if last == i {
+                    last += 1;
                 } else {
-                    return Err(ArgumentError::InvalidEscape(c))
+                    words.push(&source[last..i]);
+                    last = i + 1;
                 }
-            } else {
-                return Err(ArgumentError::UnexpectedEndOfLine)
             },
-            _ => expanded.push(c)
+            '\'' | '"' => {
+                argv::find_with_previous(
+                    &mut chars,
+                    |o| if let Some((_, c)) = o { *c != '\\' } else { true },
+                    |(_, current)| *current == c
+                );
+            },
+            '\\' => { chars.next(); },
+            _ => {}
         }
     }
 
-    Ok(expanded)
+    if last < source.len() {
+        words.push(&source[last..])
+    }
+
+    words
 }
 
 fn is_pattern(s: &str) -> bool {
@@ -190,6 +182,46 @@ fn expand_filenames(argv: Vec<String>) -> Vec<String> {
     expanded
 }
 
+/// Remove all non-escaped strings.
+fn expand_quotes(source: &str) -> Result<String, ArgumentError> {
+    let mut expanded = String::new();
+    let mut chars = source.chars();
+
+    let mut is_single_quote = false;
+    let mut is_double_quote = false;
+
+    while let Some(c) = chars.next() {
+        match c {
+            '\'' => if ! is_double_quote {
+                is_single_quote = ! is_single_quote;
+            } else {
+                expanded.push(c);
+            },
+            '"' => if ! is_single_quote {
+                is_double_quote = ! is_double_quote;
+            } else {
+                expanded.push(c);
+            },
+            '*' | '?' => {
+                expanded.push('\\');
+                expanded.push(c);
+            },
+            '\\' => if let Some(c) = chars.next() {
+                if matches!(c, '"' | '\'' | ' ' | '~') {
+                    expanded.push(c);
+                } else {
+                    return Err(ArgumentError::InvalidEscape(c))
+                }
+            } else {
+                return Err(ArgumentError::UnexpectedEndOfLine)
+            },
+            _ => expanded.push(c)
+        }
+    }
+
+    Ok(expanded)
+}
+
 /// Expands a line of input in a similar order to Bash as described in the
 /// [Shell Expansions](https://www.gnu.org/software/bash/manual/html_node/Shell-Expansions.html)
 /// section of the documentation:
@@ -216,7 +248,12 @@ fn expand_filenames(argv: Vec<String>) -> Vec<String> {
 /// todo: variable / parameter expansion
 /// todo: word splitting
 /// todo: filename expansion
-fn expand(source: &str) -> Vec<String> {
+fn expand(source: &str) -> Result<Vec<String>, ArgumentError> {
+    let tilde = expand_tilde(source, || match dirs::home_dir() {
+        Some(p) => Some(p.to_string_lossy().to_string()),
+        None => None
+    })?;
+    let variable = expand_vars(tilde.as_str())?;
     todo!()
 }
 
@@ -350,54 +387,61 @@ mod test {
         }
     }
 
-    mod test_quotes {
-        use std::env;
+    mod test_word_split {
         use crate::argv::expand;
 
         #[test]
-        fn test_expand_single() {
-            let expected = Ok("abc".to_string());
-            let actual = expand::expand_quotes("a'b'c");
+        fn test_one_word() {
+            let expected = vec!["a"];
+            let actual = expand::split_words("a");
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn test_expand_double() {
-            let expected = Ok("abc".to_string());
-            let actual = expand::expand_quotes("a\"b\"c");
+        fn test_with_space() {
+            let expected = vec!["a", "b"];
+            let actual = expand::split_words("a b");
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn test_single_quote_inside_double() {
-            let expected = Ok("a'bc".to_string());
-            let actual = expand::expand_quotes("a\"'\"bc");
+        fn test_with_tab() {
+            let expected = vec!["a", "b"];
+            let actual = expand::split_words("a\tb");
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn test_single_escaped_quote_inside_double() {
-            let expected = Ok("a\"bc".to_string());
-            let actual = expand::expand_quotes("a\"\\\"\"bc");
+        fn test_with_trailing_delimiter() {
+            let expected = vec!["a", "b"];
+            let actual = expand::split_words("a b ");
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn test_expand_escaped_quote() {
-            let expected = Ok("a'bc".to_string());
-            let actual = expand::expand_quotes("a\\'bc");
+        fn test_with_extra_delimiter() {
+            let expected = vec!["a", "b"];
+            let actual = expand::split_words("a  b");
 
             assert_eq!(expected, actual);
         }
 
         #[test]
-        fn test_quoted_glob_character() {
-            let expected = Ok("a\\*b".to_string());
-            let actual = expand::expand_quotes("a'*'b");
+        fn test_ignore_in_quotes() {
+            let expected = vec!["'a b'"];
+            let actual = expand::split_words("'a b'");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_ignore_escaped() {
+            let expected = vec!["a\\ b"];
+            let actual = expand::split_words("a\\ b");
 
             assert_eq!(expected, actual);
         }
@@ -470,6 +514,59 @@ mod test {
         }
     }
 
+    mod test_quotes {
+        use std::env;
+        use crate::argv::expand;
+
+        #[test]
+        fn test_expand_single() {
+            let expected = Ok("abc".to_string());
+            let actual = expand::expand_quotes("a'b'c");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_expand_double() {
+            let expected = Ok("abc".to_string());
+            let actual = expand::expand_quotes("a\"b\"c");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_single_quote_inside_double() {
+            let expected = Ok("a'bc".to_string());
+            let actual = expand::expand_quotes("a\"'\"bc");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_single_escaped_quote_inside_double() {
+            let expected = Ok("a\"bc".to_string());
+            let actual = expand::expand_quotes("a\"\\\"\"bc");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_expand_escaped_quote() {
+            let expected = Ok("a'bc".to_string());
+            let actual = expand::expand_quotes("a\\'bc");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_quoted_glob_character() {
+            let expected = Ok("a\\*b".to_string());
+            let actual = expand::expand_quotes("a'*'b");
+
+            assert_eq!(expected, actual);
+        }
+    }
+
     mod test_expand {
         use std::env;
         use crate::argv::expand;
@@ -489,7 +586,7 @@ mod test {
             ];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(source);
+            let actual = expand::expand(source)?;
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -508,7 +605,7 @@ mod test {
             let expected = vec!["a*file".to_string()];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(source);
+            let actual = expand::expand(source)?;
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -527,7 +624,7 @@ mod test {
             let expected = vec!["a*file".to_string()];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(source);
+            let actual = expand::expand(source)?;
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -546,7 +643,7 @@ mod test {
             let expected = vec![String::new()];
 
             env::set_current_dir(new_cwd)?;
-            let actual = expand::expand(source);
+            let actual = expand::expand(source)?;
             env::set_current_dir(old_cwd)?;
 
             assert_eq!(expected, actual);
@@ -559,7 +656,7 @@ mod test {
             let source = "a'_'file";
 
             let expected = vec!["a_file".to_string()];
-            let actual = expand::expand(source);
+            let actual = expand::expand(source)?;
 
             assert_eq!(expected, actual);
 
