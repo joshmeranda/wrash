@@ -199,45 +199,57 @@ fn expand_filenames(argv: Vec<&str>) -> Vec<String> {
 }
 
 /// Remove all non-escaped strings.
-fn expand_quotes(word: &str) -> Result<String, ArgumentError> {
-    let mut expanded = String::new();
-    let mut chars = word.chars();
+fn expand_quotes(argv: Vec<String>) -> Result<Vec<String>, ArgumentError> {
+    let mut words = vec![];
 
-    let mut is_single_quote = false;
-    let mut is_double_quote = false;
+    for word in argv {
+        let mut expanded = String::new();
+        let mut chars = word.chars();
 
-    while let Some(c) = chars.next() {
-        match c {
-            '\'' => {
-                if !is_double_quote {
-                    is_single_quote = !is_single_quote;
-                } else {
-                    expanded.push(c);
-                }
-            }
-            '"' => {
-                if !is_single_quote {
-                    is_double_quote = !is_double_quote;
-                } else {
-                    expanded.push(c);
-                }
-            }
-            '\\' => {
-                if let Some(c) = chars.next() {
-                    if matches!(c, '"' | '\'' | ' ' | '~') {
-                        expanded.push(c);
+        let mut is_single_quote = false;
+        let mut is_double_quote = false;
+
+        while let Some(c) = chars.next() {
+            match c {
+                '\'' => {
+                    if !is_double_quote {
+                        is_single_quote = !is_single_quote;
                     } else {
-                        return Err(ArgumentError::InvalidEscape(c));
+                        expanded.push(c);
                     }
-                } else {
-                    return Err(ArgumentError::UnexpectedEndOfLine);
                 }
+                '"' => {
+                    if !is_single_quote {
+                        is_double_quote = !is_double_quote;
+                    } else {
+                        expanded.push(c);
+                    }
+                }
+                '\\' => {
+                    if let Some(c) = chars.next() {
+                        if matches!(c, '"' | '\'' | ' ' | '~') {
+                            expanded.push(c);
+                        } else {
+                            return Err(ArgumentError::InvalidEscape(c));
+                        }
+                    } else {
+                        return Err(ArgumentError::UnexpectedEndOfLine);
+                    }
+                }
+                _ => expanded.push(c),
             }
-            _ => expanded.push(c),
+        }
+
+        if is_single_quote {
+            return Err(ArgumentError::UnterminatedSequence('\''))
+        } else if is_double_quote {
+            return Err(ArgumentError::UnterminatedSequence('\''))
+        } else {
+            words.push(expanded);
         }
     }
 
-    Ok(expanded)
+    Ok(words)
 }
 
 /// Expands a line of input in a similar order to Bash as described in the
@@ -278,10 +290,7 @@ pub fn expand(source: &str) -> Result<Vec<String>, ArgumentError> {
 
     let filenames = expand_filenames(words);
 
-    let quotes = filenames
-        .iter()
-        .map(|word| expand_quotes(word).unwrap())
-        .collect();
+    let quotes = expand_quotes(filenames)?;
 
     Ok(quotes)
 }
@@ -549,52 +558,61 @@ mod test {
     }
 
     mod test_quotes {
+        use crate::argv::error::ArgumentError;
         use crate::argv::expand;
 
         #[test]
         fn test_expand_single() {
-            let expected = Ok("abc".to_string());
-            let actual = expand::expand_quotes("a'b'c");
+            let expected = Ok(vec!["abc".to_string()]);
+            let actual = expand::expand_quotes(vec!["a'b'c".to_string()]);
 
             assert_eq!(expected, actual);
         }
 
         #[test]
         fn test_expand_double() {
-            let expected = Ok("abc".to_string());
-            let actual = expand::expand_quotes("a\"b\"c");
+            let expected = Ok(vec!["abc".to_string()]);
+            let actual = expand::expand_quotes(vec!["a\"b\"c".to_string()]);
 
             assert_eq!(expected, actual);
         }
 
         #[test]
         fn test_single_quote_inside_double() {
-            let expected = Ok("a'bc".to_string());
-            let actual = expand::expand_quotes("a\"'\"bc");
+            let expected = Ok(vec!["a'bc".to_string()]);
+            let actual = expand::expand_quotes(vec!["a\"'\"bc".to_string()]);
 
             assert_eq!(expected, actual);
         }
 
         #[test]
         fn test_single_escaped_quote_inside_double() {
-            let expected = Ok("a\"bc".to_string());
-            let actual = expand::expand_quotes("a\"\\\"\"bc");
+            let expected = Ok(vec!["a\"bc".to_string()]);
+            let actual = expand::expand_quotes(vec!["a\"\\\"\"bc".to_string()]);
 
             assert_eq!(expected, actual);
         }
 
         #[test]
         fn test_expand_escaped_quote() {
-            let expected = Ok("a'bc".to_string());
-            let actual = expand::expand_quotes("a\\'bc");
+            let expected = Ok(vec!["a'bc".to_string()]);
+            let actual = expand::expand_quotes(vec!["a\\'bc".to_string()]);
 
             assert_eq!(expected, actual);
         }
 
         #[test]
         fn test_quoted_glob_character() {
-            let expected = Ok("a*b".to_string());
-            let actual = expand::expand_quotes("a'*'b");
+            let expected = Ok(vec!["a*b".to_string()]);
+            let actual = expand::expand_quotes(vec!["a'*'b".to_string()]);
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_unterminated_quote() {
+            let expected = Err(ArgumentError::UnterminatedSequence('\''));
+            let actual = expand::expand_quotes(vec!["cmd a 'b c".to_string()]);
 
             assert_eq!(expected, actual);
         }
@@ -604,6 +622,7 @@ mod test {
         use crate::argv::expand;
         use crate::argv::expand::test::get_resource_path;
         use std::env;
+        use crate::argv::error::ArgumentError;
 
         #[ignore]
         #[test]
