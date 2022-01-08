@@ -622,7 +622,6 @@ mod test {
         use crate::argv::expand;
         use crate::argv::expand::test::get_resource_path;
         use std::env;
-        use crate::argv::error::ArgumentError;
 
         #[ignore]
         #[test]
