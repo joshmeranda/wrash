@@ -243,7 +243,7 @@ fn expand_quotes(word: &str) -> Result<String, ArgumentError> {
 /// todo: variable / parameter expansion
 /// todo: word splitting
 /// todo: filename expansion
-fn expand(source: &str) -> Result<Vec<String>, ArgumentError> {
+pub fn expand(source: &str) -> Result<Vec<String>, ArgumentError> {
     let tilde = expand_tilde(source, || match dirs::home_dir() {
         Some(p) => Some(p.to_string_lossy().to_string()),
         None => None

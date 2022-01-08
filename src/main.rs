@@ -19,6 +19,7 @@ use std::process::Command;
 
 use crate::error::WrashError;
 use clap::Arg;
+use crate::argv::expand;
 
 use crate::history::History;
 use crate::session::{Session, SessionMode};
@@ -106,10 +107,10 @@ fn main() {
             }
         };
 
-        let argv = match shlex::split(cmd.as_str()) {
-            Some(args) => args,
-            None => {
-                eprintln!("Error splitting command line arguments");
+        let argv = match expand::expand(cmd.as_str()) {
+            Ok(argv) => argv,
+            Err(err) => {
+                eprintln!("Error expanding command line arguments: {}", err);
                 continue;
             }
         };

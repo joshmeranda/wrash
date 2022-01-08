@@ -3,8 +3,8 @@ use std::path::Iter;
 use clap::Arg;
 use crate::argv::error::ArgumentError;
 
-mod error;
-mod expand;
+pub mod error;
+pub mod expand;
 
 /// Provides much of the same functionality as `Iterator::find` but also
 /// provides the previous value if it exists. Use `previous` to test the
