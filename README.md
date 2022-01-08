@@ -1,5 +1,29 @@
 # Wrash
+Wrash is an interactive shell wrapper for you favorite commands!
 
+Wrash will save you some precious key-hits when you have to run multiple subcommands to do something. Instead of running 
+
+```sh
+>>> git add src/source_code.ext
+>>> git status
+>>> git commit -m 'fix some bug'
+>>> git push
+```
+
+You can run:
+
+```sh
+>>> wrash git
+>>> add src/source_code.ext
+>>> status
+>>> commit -m 'fix some bug'
+>>> push
+```
+
+## Instalattion
+Wrash v0.1 is now available on the [Arch User Repository](https://aur.archlinux.org/packages/wrash-git) (AUR).
+
+Or clone, build, and install with [Cargo](https://doc.rust-lang.org/cargo/).
 
 ## Testing
 Most tests can be run with the typical `cargo test`, but some require that we mutate the current working directory,
