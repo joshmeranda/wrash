@@ -405,15 +405,17 @@ impl<'shell> Session<'shell> {
                 // tab completion
                 Key::Char('\t') => {
                     let word_start = get_previous_boundary(buffer.as_str(), offset);
-                    let is_command = word_start == 0;
+                    let is_command = self.mode != SessionMode::Wrapped && word_start == 0;
+
                     let completions = get_tab_completions(&buffer[word_start..offset], is_command);
 
                     match completions.len().cmp(&1) {
                         Ordering::Less => { /* do nothing */ }
                         Ordering::Equal => {
+
                             buffer.replace_range(word_start..offset, completions[0].as_str());
 
-                            if Path::new(buffer.as_str()).is_dir() {
+                            if Path::new(completions[0].as_str()).is_dir() {
                                 buffer.push(path::MAIN_SEPARATOR);
                             }
 
