@@ -79,7 +79,10 @@ fn inner_exit<F: FnOnce(i32)>(argv: &[String], exiter: F) -> BuiltinResult {
 
 /// Exit is a builtin for exiting out of the current shell session.
 pub fn exit(argv: &[String]) -> BuiltinResult {
-    inner_exit(argv, |n| std::process::exit(n));
+    // we cannot pas `std::process::exit` directly since we cannot make
+    // `inner_exit` take a `FnOnce(i32) -> !` since `!` is an experimental type
+    #![allow(clippy::redundant_closure)]
+    inner_exit(argv, |n| std::process::exit(n))?;
 
     unreachable!()
 }
@@ -309,7 +312,6 @@ pub fn history(
 #[cfg(test)]
 mod tests {
     mod test_exit {
-        use std::process::Command;
         use crate::builtins;
         use crate::error::WrashError;
 

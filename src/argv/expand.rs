@@ -1,5 +1,4 @@
 use std::env;
-use std::path::Path;
 
 use crate::argv::error::ArgumentError;
 use crate::argv;
@@ -54,7 +53,7 @@ fn expand_tilde<F>(source: &str, provider: F) -> Result<String, ArgumentError>
 }
 
 /// Expand all found parameter expansions, bot in and outside of double quotes.
-fn expand_vars(source: &str) -> Result<String, ArgumentError>{
+fn expand_vars(source: &str) -> Result<String, ArgumentError> {
     let mut expanded = String::new();
     let mut chars = source.chars().enumerate().peekable();
     let mut last = 0;
@@ -159,7 +158,7 @@ fn expand_filenames(argv: Vec<&str>) -> Vec<String> {
     for arg in argv {
         if ! is_pattern(arg) {
             expanded.push(arg.to_string());
-        } else if let Ok(mut paths) = glob::glob(arg) {
+        } else if let Ok(paths) = glob::glob(arg) {
             let mut found: Vec<String> = paths
                 .filter_map(|r| match r {
                     Ok(p) => Some(p.to_string_lossy().to_string()),
@@ -197,9 +196,6 @@ fn expand_quotes(word: &str) -> Result<String, ArgumentError> {
             } else {
                 expanded.push(c);
             },
-            // '*' | '?' => {
-            //     expanded.push(c);
-            // },
             '\\' => if let Some(c) = chars.next() {
                 if matches!(c, '"' | '\'' | ' ' | '~') {
                     expanded.push(c);
@@ -244,10 +240,7 @@ fn expand_quotes(word: &str) -> Result<String, ArgumentError> {
 /// todo: word splitting
 /// todo: filename expansion
 pub fn expand(source: &str) -> Result<Vec<String>, ArgumentError> {
-    let tilde = expand_tilde(source, || match dirs::home_dir() {
-        Some(p) => Some(p.to_string_lossy().to_string()),
-        None => None
-    })?;
+    let tilde = expand_tilde(source, || dirs::home_dir().map(|p| p.to_string_lossy().to_string()))?;
 
     let variable = expand_vars(tilde.as_str())?;
 
@@ -272,7 +265,6 @@ mod test {
     }
 
     mod test_tilde {
-        use std::env;
         use crate::argv::expand;
 
         #[test]
@@ -344,6 +336,16 @@ mod test {
 
             let expected = Ok("a".to_string());
             let actual = expand::expand_vars("$A");
+
+            assert_eq!(expected, actual);
+        }
+
+        #[test]
+        fn test_var_no_curly_with_trailing_bang() {
+            env::set_var("A", "a");
+
+            let expected = Ok("a!".to_string());
+            let actual = expand::expand_vars("$A!");
 
             assert_eq!(expected, actual);
         }
@@ -453,7 +455,6 @@ mod test {
     mod test_filename {
         use crate::argv::expand;
         use std::env;
-        use std::path::PathBuf;
         use crate::argv::expand::test::get_resource_path;
 
         #[ignore]
@@ -518,7 +519,6 @@ mod test {
     }
 
     mod test_quotes {
-        use std::env;
         use crate::argv::expand;
 
         #[test]
@@ -642,7 +642,6 @@ mod test {
             let old_cwd = env::current_dir()?;
             let new_cwd = get_resource_path(&["a_directory"]);
 
-            let expected = vec![String::new()];
             let expected = vec!["a_file".to_string(), "another_file".to_string()];
 
             env::set_current_dir(new_cwd)?;

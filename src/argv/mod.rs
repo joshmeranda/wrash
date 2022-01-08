@@ -1,8 +1,3 @@
-use std::path::Component::ParentDir;
-use std::path::Iter;
-use clap::Arg;
-use crate::argv::error::ArgumentError;
-
 pub mod error;
 pub mod expand;
 
@@ -26,7 +21,8 @@ fn find_with_previous<I, F, G>(iterator: &mut I, previous: F, current: G) -> Opt
             } else {
                 let mut previous_item = current_item;
 
-                while let Some(current_item) = iterator.next() {
+                // while let Some(current_item) = iterator.next() {
+                for current_item in iterator {
                     if previous(Some(&previous_item)) && current(&current_item) {
                         return Some(current_item);
                     }
@@ -43,8 +39,6 @@ fn find_with_previous<I, F, G>(iterator: &mut I, previous: F, current: G) -> Opt
 #[cfg(test)]
 mod test {
     mod find_with_previous {
-        use crate::argv::find_with_previous;
-        use std::ops::Range;
         use crate::argv;
 
         #[test]

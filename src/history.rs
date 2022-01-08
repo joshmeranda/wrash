@@ -1,8 +1,6 @@
 use std::fs::{self, File};
 use std::io::{ErrorKind, Write};
-use std::path::{Path, PathBuf};
-
-use dirs;
+use std::path::PathBuf;
 
 use crate::session::SessionMode;
 use crate::WrashError;
@@ -54,10 +52,7 @@ pub struct History {
 /// Provides an abstraction around the shell's previously run commands.
 impl History {
     fn find_history_file() -> Option<PathBuf> {
-        match dirs::data_dir() {
-            Some(mut p) => Some(p.join("wrash").join("history.yaml")),
-            None => None
-        }
+        dirs::data_dir().map(|p| p.join("wrash").join("history.yaml"))
     }
 
     /// Creates a new History value using $XDG_DATA_HOME/wrash/history as the
