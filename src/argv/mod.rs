@@ -7,32 +7,31 @@ mod error;
 mod expand;
 
 /// Provides much of the same functionality as `Iterator::find` but also
-/// provides the previous value if it exists. Use `g` to test the previous
-/// value, and `g` to test the current value (including the the first value).
-/// `f` takes an optional to allow you to specify whether a `true` return from
-/// `g` on the first element will stop any further iteration or not.
-fn find_with_previous<I, F, G>(iterator: &mut I, f: F, g: G) -> Option<I::Item>
+/// provides the previous value if it exists. Use `previous` to test the
+/// previous value, and `current` to test the current value (including the the
+/// first value). `previous` takes an optional to allow you to specify whether
+/// a `true` return from `current` on the first element will stop any further
+/// iteration or not.
+fn find_with_previous<I, F, G>(iterator: &mut I, previous: F, current: G) -> Option<I::Item>
     where
         I: Iterator,
         F: Fn(Option<&I::Item>) -> bool,
         G: Fn(&I::Item) -> bool,
 {
-    let mut current: Option<I::Item> = iterator.next();
-
-    match current {
+    match iterator.next() {
         None => None,
-        Some(current) => {
-            if f(None) && g(&current) {
-                Some(current)
+        Some(current_item) => {
+            if previous(None) && current(&current_item) {
+                Some(current_item)
             } else {
-                let mut previous = current;
+                let mut previous_item = current_item;
 
-                while let Some(current) = iterator.next() {
-                    if f(Some(&previous)) && g(&current) {
-                        return Some(current);
+                while let Some(current_item) = iterator.next() {
+                    if previous(Some(&previous_item)) && current(&current_item) {
+                        return Some(current_item);
                     }
 
-                    previous = current;
+                    previous_item = current_item;
                 }
 
                 None
