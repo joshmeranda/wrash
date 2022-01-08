@@ -6,11 +6,11 @@ use std::path::{self, Component, Path};
 use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
+use termion::color;
 use termion::cursor::{DetectCursorPos, Goto, Left, Restore, Right, Save};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
-use termion::color;
 
 use faccess::PathExt;
 
@@ -278,7 +278,12 @@ impl<'shell> Session<'shell> {
 
         if let Ok((x, _)) = stdout.cursor_pos() {
             if x != 1 {
-                writeln!(stdout, "{}⏎{}\r", color::Fg(color::Red), color::Fg(color::Reset))?;
+                writeln!(
+                    stdout,
+                    "{}⏎{}\r",
+                    color::Fg(color::Red),
+                    color::Fg(color::Reset)
+                )?;
             }
         }
 
@@ -388,7 +393,7 @@ impl<'shell> Session<'shell> {
                 // screen control
                 // todo: write lines and scroll rather than clearing screen
                 Key::Ctrl('l') => {
-                    write!(stdout, "{}{}{}{}", All, Goto(1,1), prompt, Save)?;
+                    write!(stdout, "{}{}{}{}", All, Goto(1, 1), prompt, Save)?;
                 }
 
                 // exit shell
@@ -471,13 +476,7 @@ impl<'shell> Session<'shell> {
                     Right(1)
                 )?;
             } else if offset == buffer.len() {
-                write!(
-                    stdout,
-                    "{}{}{}",
-                    Restore,
-                    AfterCursor,
-                    buffer,
-                )?;
+                write!(stdout, "{}{}{}", Restore, AfterCursor, buffer,)?;
             } else {
                 write!(
                     stdout,

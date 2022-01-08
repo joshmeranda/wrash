@@ -1,9 +1,12 @@
+// todo: all documentation could be cleaned up.
+
 #[macro_use]
 extern crate clap;
 
 #[macro_use]
 extern crate serde_derive;
 
+mod argv;
 mod builtins;
 mod completion;
 mod error;
@@ -14,6 +17,7 @@ use std::env;
 use std::io::{self, Write};
 use std::process::Command;
 
+use crate::argv::expand;
 use crate::error::WrashError;
 use clap::Arg;
 
@@ -86,9 +90,9 @@ fn main() {
     let mut stdout = std::io::stdout();
     let mut stderr = std::io::stderr();
 
-    if let Err(err) = ctrlc::set_handler(|| { }) {
+    if let Err(err) = ctrlc::set_handler(|| {}) {
         eprintln!("Error: {}", err);
-        return
+        return;
     }
 
     loop {
@@ -103,10 +107,10 @@ fn main() {
             }
         };
 
-        let argv = match shlex::split(cmd.as_str()) {
-            Some(args) => args,
-            None => {
-                eprintln!("Error splitting command line arguments");
+        let argv = match expand::expand(cmd.as_str()) {
+            Ok(argv) => argv,
+            Err(err) => {
+                eprintln!("Error expanding command line arguments: {}", err);
                 continue;
             }
         };
@@ -132,7 +136,7 @@ fn main() {
 
         if let Err(err) = result {
             match err {
-                WrashError::NonZeroExit(_) => { },
+                WrashError::NonZeroExit(_) => {}
                 WrashError::FailedIo(err) => eprintln!("Error: {}", err),
                 WrashError::Custom(s) => println!("Error: {}", s),
             }

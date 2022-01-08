@@ -79,7 +79,10 @@ fn inner_exit<F: FnOnce(i32)>(argv: &[String], exiter: F) -> BuiltinResult {
 
 /// Exit is a builtin for exiting out of the current shell session.
 pub fn exit(argv: &[String]) -> BuiltinResult {
-    inner_exit(argv, |n| std::process::exit(n));
+    // we cannot pas `std::process::exit` directly since we cannot make
+    // `inner_exit` take a `FnOnce(i32) -> !` since `!` is an experimental type
+    #![allow(clippy::redundant_closure)]
+    inner_exit(argv, |n| std::process::exit(n))?;
 
     unreachable!()
 }
@@ -309,7 +312,6 @@ pub fn history(
 #[cfg(test)]
 mod tests {
     mod test_exit {
-        use std::process::Command;
         use crate::builtins;
         use crate::error::WrashError;
 
@@ -318,7 +320,9 @@ mod tests {
             let expected_exit_code = 0;
 
             let expected = Ok(());
-            let actual = builtins::inner_exit(&["exit".to_string()], |actual_exit_code| assert_eq!(expected_exit_code, actual_exit_code));
+            let actual = builtins::inner_exit(&["exit".to_string()], |actual_exit_code| {
+                assert_eq!(expected_exit_code, actual_exit_code)
+            });
 
             assert_eq!(expected, actual);
         }
@@ -328,7 +332,9 @@ mod tests {
             let expected_exit_code = 0;
 
             let expected = Ok(());
-            let actual = builtins::inner_exit(&["0".to_string()], |actual_exit_code| assert_eq!(expected_exit_code, actual_exit_code));
+            let actual = builtins::inner_exit(&["0".to_string()], |actual_exit_code| {
+                assert_eq!(expected_exit_code, actual_exit_code)
+            });
 
             assert_eq!(expected, actual);
         }
@@ -338,7 +344,10 @@ mod tests {
             let expected_exit_code = 1;
 
             let expected = Err(WrashError::NonZeroExit(1));
-            let actual = builtins::inner_exit(&["exit".to_string(), "1".to_string()], |actual_exit_code| assert_eq!(expected_exit_code, actual_exit_code));
+            let actual =
+                builtins::inner_exit(&["exit".to_string(), "1".to_string()], |actual_exit_code| {
+                    assert_eq!(expected_exit_code, actual_exit_code)
+                });
 
             assert_eq!(expected, actual);
         }
@@ -346,7 +355,7 @@ mod tests {
         #[test]
         fn test_exit_neg_1() {
             let expected = Err(WrashError::NonZeroExit(1));
-            let actual = builtins::inner_exit(&["exit".to_string(), "nan".to_string()], |_| { });
+            let actual = builtins::inner_exit(&["exit".to_string(), "nan".to_string()], |_| {});
 
             assert_eq!(expected, actual);
         }
@@ -354,7 +363,7 @@ mod tests {
         #[test]
         fn test_exit_non_number() {
             let expected = Err(WrashError::NonZeroExit(1));
-            let actual = builtins::inner_exit(&["exit".to_string(), "nan".to_string()], |_| { });
+            let actual = builtins::inner_exit(&["exit".to_string(), "nan".to_string()], |_| {});
 
             assert_eq!(expected, actual);
         }
@@ -588,7 +597,8 @@ mod tests {
 
             assert_eq!(expected_out, actual_out);
 
-            let expected_err = String::from("Error: could not set session mode, session is frozen\n");
+            let expected_err =
+                String::from("Error: could not set session mode, session is frozen\n");
             let actual_err = String::from_utf8(err.into_inner()?).unwrap();
 
             assert_eq!(expected_err, actual_err);
@@ -618,7 +628,8 @@ mod tests {
 
             assert_eq!(expected_out, actual_out);
 
-            let expected_err = String::from("Error: could not set session mode, session is frozen\n");
+            let expected_err =
+                String::from("Error: could not set session mode, session is frozen\n");
             let actual_err = String::from_utf8(err.into_inner()?).unwrap();
 
             assert_eq!(expected_err, actual_err);
