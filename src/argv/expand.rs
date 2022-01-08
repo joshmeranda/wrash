@@ -243,7 +243,7 @@ fn expand_quotes(argv: Vec<String>) -> Result<Vec<String>, ArgumentError> {
         if is_single_quote {
             return Err(ArgumentError::UnterminatedSequence('\''))
         } else if is_double_quote {
-            return Err(ArgumentError::UnterminatedSequence('\''))
+            return Err(ArgumentError::UnterminatedSequence('\"'))
         } else {
             words.push(expanded);
         }
