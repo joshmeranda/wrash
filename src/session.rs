@@ -7,7 +7,7 @@ use std::str::FromStr;
 
 use termion::clear::{AfterCursor, All};
 use termion::color;
-use termion::cursor::{DetectCursorPos, Goto, Left, Restore, Right, Save};
+use termion::cursor::{DetectCursorPos, Goto, Restore, Right, Save};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
@@ -289,7 +289,7 @@ impl<'shell> Session<'shell> {
 
         let prompt = prompt();
 
-        write!(stdout, "{}{}", prompt, Save)?;
+        write!(stdout, "{}{}", Save, prompt)?;
         stdout.flush()?;
 
         for key in stdin.keys().filter_map(Result::ok) {
@@ -393,7 +393,7 @@ impl<'shell> Session<'shell> {
                 // screen control
                 // todo: write lines and scroll rather than clearing screen
                 Key::Ctrl('l') => {
-                    write!(stdout, "{}{}{}{}", All, Goto(1, 1), prompt, Save)?;
+                    write!(stdout, "{}{}{}", All, Goto(1, 1), Save)?;
                 }
 
                 // exit shell
@@ -412,7 +412,6 @@ impl<'shell> Session<'shell> {
                     match completions.len().cmp(&1) {
                         Ordering::Less => { /* do nothing */ }
                         Ordering::Equal => {
-
                             buffer.replace_range(word_start..offset, completions[0].as_str());
 
                             if Path::new(completions[0].as_str()).is_dir() {
@@ -467,28 +466,18 @@ impl<'shell> Session<'shell> {
                 _ => { /* do nothing */ }
             };
 
-            if offset == 0 {
-                write!(
-                    stdout,
-                    "{}{}{}{}{}",
-                    Restore,
-                    AfterCursor,
-                    buffer,
-                    Left(buffer.len() as u16),
-                    Right(1)
-                )?;
-            } else if offset == buffer.len() {
-                write!(stdout, "{}{}{}", Restore, AfterCursor, buffer,)?;
-            } else {
-                write!(
-                    stdout,
-                    "{}{}{}{}",
-                    Restore,
-                    AfterCursor,
-                    buffer,
-                    Left((buffer.len() - offset) as u16)
-                )?;
-            }
+            // reminder to future devs, please don't go optimizing this until
+            // it causes performance issues (hasn't gone well in the past)
+            write!(
+                stdout,
+                "{}{}{}{}{}{}",
+                Restore,
+                AfterCursor,
+                prompt,
+                buffer,
+                Restore,
+                Right((prompt.len() + offset) as u16)
+            )?;
 
             stdout.flush()?;
 
