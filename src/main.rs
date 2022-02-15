@@ -121,7 +121,16 @@ fn main() {
 
         let result = match argv[0].as_str() {
             // if exit is successful the current process will be exited
-            "exit" => builtins::exit(&argv),
+            "exit" => {
+                if let Err(err) = session.history_sync() {
+                    eprintln!(
+                        "Error: could not synchronize session history to file system: {}",
+                        err
+                    );
+                }
+
+                builtins::exit(&argv)
+            }
             "cd" => builtins::cd(&mut stderr, &argv),
             "mode" => builtins::mode(&mut stdout, &mut stderr, &mut session, &argv),
             "?" => builtins::help(&argv),

@@ -55,25 +55,36 @@ impl History {
         dirs::data_dir().map(|p| p.join("wrash").join("history.yaml"))
     }
 
-    /// Creates a new History value using $XDG_DATA_HOME/wrash/history as the
-    /// history file. If the file cold not be found or read, the history is
-    /// created empty (same as calling `History::new`).
+    /// Creates a new `History` value using $XDG_DATA_HOME/wrash/history as the
+    /// history file.
     pub fn new() -> Result<History, WrashError> {
         match History::find_history_file() {
             Some(path) => History::with_file(path),
             None => Err(WrashError::FailedIo(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "could not find the user's history file",
+                "could not determine where to look for the user's history file",
             ))),
         }
     }
 
+    /// Construct a new `History` file using the given file as the source. If
+    /// the file cold not be found or read, the history is created empty, and
+    /// the target file is also created.
     fn with_file(path: PathBuf) -> Result<History, WrashError> {
         let s = match fs::read_to_string(path.as_path()) {
             Ok(s) => s,
             Err(err) => {
-                eprintln!("Error: could not read file: {}", err);
-                return Err(WrashError::FailedIo(err));
+                // ignore any issues with a missing history file
+                if err.kind() == ErrorKind::NotFound {
+                    String::new()
+                } else {
+                    eprintln!(
+                        "Error: could not read file '{}' : {}",
+                        path.to_string_lossy(),
+                        err
+                    );
+                    return Err(WrashError::FailedIo(err));
+                }
             }
         };
 
@@ -126,7 +137,7 @@ impl History {
                         fs::create_dir_all(parent)?;
                     }
 
-                    File::open(self.path.as_ref().unwrap().as_path())?
+                    File::create(self.path.as_ref().unwrap().as_path())?
                 }
                 _ => return Err(WrashError::FailedIo(err)),
             },
@@ -176,17 +187,6 @@ impl<'history> DoubleEndedIterator for HistoryIterator<'history> {
             self.back_index -= 1;
 
             self.entries.get(self.back_index)
-        }
-    }
-}
-
-impl Drop for History {
-    fn drop(&mut self) {
-        if let Err(err) = self.sync() {
-            eprintln!(
-                "Error: could not write session history to history file: {}",
-                err
-            );
         }
     }
 }
