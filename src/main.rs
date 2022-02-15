@@ -98,7 +98,6 @@ fn main() {
     loop {
         let _ = io::stdout().flush();
 
-        // todo: we will likely want to do the splitting ourselves or add post-processing to allow for globbing so that we can handle globs
         let cmd = match session.take_input() {
             Ok(c) => c,
             Err(err) => {

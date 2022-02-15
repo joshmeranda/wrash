@@ -78,11 +78,6 @@ impl History {
                 if err.kind() == ErrorKind::NotFound {
                     String::new()
                 } else {
-                    eprintln!(
-                        "Error: could not read file '{}' : {}",
-                        path.to_string_lossy(),
-                        err
-                    );
                     return Err(WrashError::FailedIo(err));
                 }
             }
