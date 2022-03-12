@@ -443,7 +443,7 @@ impl<'shell> Session<'shell> {
                                         write!(stdout, "{:<width$}", c, width = max_width + 2)?;
                                     }
                                 }
-                                writeln!(stdout)?;
+                                write!(stdout, "\r\n{}", Save)?;
                             }
                         }
                     }
