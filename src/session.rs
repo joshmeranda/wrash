@@ -436,11 +436,12 @@ impl<'shell> Session<'shell> {
                                     termion::terminal_size().unwrap().0 as usize,
                                 );
 
+                                write!(stdout, "\r\n")?;
                                 for (i, c) in completions.iter().enumerate() {
-                                    if i % entries_per_line == 0 {
+                                    if (i + 1) % entries_per_line == 0 {
                                         write!(stdout, "\n\r{:<width$}", c, width = max_width)?;
                                     } else {
-                                        write!(stdout, "{:<width$}", c, width = max_width + 2)?;
+                                        write!(stdout, "{:<width$}", c, width = max_width + 1)?;
                                     }
                                 }
                                 write!(stdout, "\r\n{}", Save)?;
