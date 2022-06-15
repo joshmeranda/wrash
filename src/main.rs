@@ -106,17 +106,20 @@ fn main() {
             }
         };
 
-        let argv = match expand::expand(cmd.as_str()) {
+        let trimmed = cmd.trim();
+
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let argv = match expand::expand(trimmed) {
             Ok(argv) => argv,
             Err(err) => {
                 eprintln!("Error expanding command line arguments: {}", err);
+                session.push_to_history(trimmed, builtins::is_builtin(trimmed.split_whitespace().next().unwrap()));
                 continue;
             }
         };
-
-        if argv.is_empty() {
-            continue;
-        }
 
         let result = match argv[0].as_str() {
             // if exit is successful the current process will be exited
@@ -140,7 +143,7 @@ fn main() {
             },
         };
 
-        session.push_to_history(cmd.as_str(), builtins::is_builtin(argv[0].as_str()));
+        session.push_to_history(trimmed, builtins::is_builtin(argv[0].as_str()));
 
         if let Err(err) = result {
             match err {
