@@ -257,38 +257,4 @@ mod test {
 
         Ok(())
     }
-
-    #[test]
-    fn test_file_drop() -> Result<(), Box<dyn std::error::Error>> {
-        let temp = NamedTempFile::new()?;
-        let path = temp.path().to_path_buf();
-        let mut file = temp.as_file();
-
-        write!(file, "")?;
-
-        {
-            let mut history = History::with_file(path.clone())?;
-
-            history.push(HistoryEntry::new(
-                "subcmd -arg 1 -arg 2".to_string(),
-                Some("cmd".to_string()),
-                SessionMode::Wrapped,
-                false,
-            ))
-        }
-
-        let expected = concat!(
-            "---\n",
-            "- argv: subcmd -arg 1 -arg 2\n",
-            "  base: cmd\n",
-            "  mode: Wrapped\n",
-            "  is_builtin: false\n",
-        );
-
-        let actual = read_to_string(path)?;
-
-        assert_eq!(expected, actual);
-
-        Ok(())
-    }
 }
