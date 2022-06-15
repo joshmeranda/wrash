@@ -73,14 +73,7 @@ impl History {
     fn with_file(path: PathBuf) -> Result<History, WrashError> {
         let s = match fs::read_to_string(path.as_path()) {
             Ok(s) => s,
-            Err(err) => {
-                // ignore any issues with a missing history file
-                if err.kind() == ErrorKind::NotFound {
-                    String::new()
-                } else {
-                    return Err(WrashError::FailedIo(err));
-                }
-            }
+            Err(err) => return Err(WrashError::FailedIo(err)),
         };
 
         let history = if s.is_empty() {
