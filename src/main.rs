@@ -24,13 +24,6 @@ use clap::Arg;
 use crate::history::History;
 use crate::session::{Session, SessionMode};
 
-/// Generate the command prompt
-///
-/// todo: allow some user configurability
-fn prompt() -> String {
-    format!("[{}] $ ", env::var("USER").unwrap())
-}
-
 fn run(command: &str, args: &[String]) -> Result<(), WrashError> {
     let proc = Command::new(command).args(args).spawn();
 

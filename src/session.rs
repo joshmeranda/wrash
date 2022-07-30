@@ -17,8 +17,6 @@ use faccess::PathExt;
 use crate::history::{History, HistoryEntry, HistoryIterator};
 use crate::{completion, WrashError};
 
-use crate::prompt;
-
 /// Get the position in a string at which the current word begins.
 fn get_previous_boundary(buffer: &str, cursor_offset: usize) -> usize {
     if cursor_offset == 0 {
@@ -287,7 +285,7 @@ impl<'shell> Session<'shell> {
             }
         }
 
-        let prompt = prompt();
+        let prompt = self.prompt();
 
         write!(stdout, "{}{}", Save, prompt)?;
         stdout.flush()?;
@@ -488,6 +486,13 @@ impl<'shell> Session<'shell> {
         stdout.flush()?;
 
         Ok(buffer)
+    }
+
+    /// Generate the command prompt
+    ///
+    /// todo: allow some user configurability
+    pub fn prompt(&self) -> String {
+        format!("[{} {}] {}> ", env::var("USER").unwrap(), env::current_dir().unwrap().to_string_lossy(), self.base)
     }
 
     /// Push the given command to the back of the in-memory history stack.
