@@ -2,17 +2,20 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
+	"strings"
 
 	wrash "github.com/joshmeranda/wrash/pkg"
+	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
 )
+
+var Version string = ""
 
 func loadHistoryEntries(path string) ([]*wrash.Entry, error) {
 	var entries []*wrash.Entry
 
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return entries, nil
 	}
@@ -28,22 +31,48 @@ func loadHistoryEntries(path string) ([]*wrash.Entry, error) {
 	return entries, nil
 }
 
-func main() {
+func run(ctx *cli.Context) error {
+	base := strings.Join(ctx.Args().Slice(), " ")
+	if base == "" {
+		return fmt.Errorf("no command provided")
+	}
+
 	historyPath, err := wrash.GetHistoryFile()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s", err)
+		return err
 	}
 
 	entries, err := loadHistoryEntries(historyPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s", err)
-		return
+		return err
 	}
 
-	session, err := wrash.NewSession("git", wrash.OptionHistory(entries))
+	session, err := wrash.NewSession(base, wrash.OptionHistory(entries))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s", err)
+		return err
 	}
 
 	session.Run()
+
+	return nil
+}
+
+func main() {
+	app := &cli.App{
+		Name:        "wrash",
+		Version:     Version,
+		Description: "turn wrap any command line utility into an interactive shell",
+		Flags:       []cli.Flag{},
+		Action:      run,
+		Authors: []*cli.Author{
+			{
+				Name:  "Josh Meranda",
+				Email: "joshmeranda@gmail.com",
+			},
+		},
+	}
+
+	if err := app.Run(os.Args); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s", err)
+	}
 }
