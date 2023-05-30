@@ -13,6 +13,10 @@ import (
 // todo: ideally we'd be able to show the completions with oonly the basenames (prompt.Suggeestion previews)
 // todo: don't cleanup the './' in the path
 func getFilesWithPrefix(prefix string) []prompt.Suggest {
+	if prefix == "" {
+		return []prompt.Suggest{}
+	}
+
 	paths, err := filepath.Glob(prefix + "*")
 	if err != nil {
 		return []prompt.Suggest{}

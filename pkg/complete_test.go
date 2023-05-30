@@ -21,9 +21,7 @@ func TestFileComplete(t *testing.T) {
 		Text     string
 		Expected []prompt.Suggest
 	}{
-		{"Empty", "", []prompt.Suggest{
-			{Text: "resources/"},
-		}},
+		{"Empty", "", []prompt.Suggest{}},
 		{"WithDot", "./", []prompt.Suggest{
 			{Text: "resources/"},
 		}},
