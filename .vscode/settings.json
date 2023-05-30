@@ -1,0 +1,7 @@
+{
+    "go.toolsEnvVars": {
+        "GOPATH": "~/go",
+        "GOMODCACHE": "~/go/pkg/mod",
+        "GOROOT": ""
+    }
+}
