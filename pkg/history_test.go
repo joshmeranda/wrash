@@ -15,9 +15,12 @@ var entries = []*Entry{
 	},
 	{
 		Base: "bar",
+		Cmd:  "a",
+	},
+	{
+		Base: "foo",
 		Cmd:  "b",
 	},
-	{},
 }
 
 func TestHistoryAdd(t *testing.T) {
@@ -26,7 +29,9 @@ func TestHistoryAdd(t *testing.T) {
 
 	h := NewHistory(session, []*Entry{}).(*history)
 	assert.Equal(t, []*Entry{
-		{},
+		{
+			Base: session.Base,
+		},
 	}, h.entries)
 
 	h.Add("bar")
@@ -35,7 +40,9 @@ func TestHistoryAdd(t *testing.T) {
 			Base: session.Base,
 			Cmd:  "bar",
 		},
-		{},
+		{
+			Base: session.Base,
+		},
 	}, h.entries)
 
 	h.Add("!!help")
@@ -47,17 +54,40 @@ func TestHistoryAdd(t *testing.T) {
 		{
 			Cmd: "!!help",
 		},
-		{},
+		{
+			Base: session.Base,
+		},
 	}, h.entries)
 }
 
 func TestHistoryOlder(t *testing.T) {
 	t.Run("BaseFoo", func(t *testing.T) {
-		h := NewHistory(
-			&Session{
-				Base: "foo",
-			}, entries,
-		)
+		session, err := NewSession("foo", OptionDisablePrompt())
+		require.NoError(t, err)
+
+		h := NewHistory(session, entries)
+
+		buf := prompt.NewBuffer()
+		buf.InsertText("", false, true)
+
+		older, ok := h.Older(buf)
+		require.True(t, ok)
+		require.Equal(t, "b", older.Text())
+
+		older, ok = h.Older(buf)
+		require.True(t, ok)
+		require.Equal(t, "a", older.Text())
+
+		older, ok = h.Older(buf)
+		require.False(t, ok)
+		require.Equal(t, "", older.Text())
+	})
+
+	t.Run("BaseBar", func(t *testing.T) {
+		session, err := NewSession("bar", OptionDisablePrompt())
+		require.NoError(t, err)
+
+		h := NewHistory(session, entries)
 
 		buf := prompt.NewBuffer()
 		buf.InsertText("", false, true)
@@ -71,36 +101,17 @@ func TestHistoryOlder(t *testing.T) {
 		require.Equal(t, "", older.Text())
 	})
 
-	t.Run("BaseBar", func(t *testing.T) {
-		h := NewHistory(
-			&Session{
-				Base: "bar",
-			}, entries,
-		)
-
-		buf := prompt.NewBuffer()
-		buf.InsertText("", false, true)
-
-		older, ok := h.Older(buf)
-		require.True(t, ok)
-		require.Equal(t, "b", older.Text())
-
-		older, ok = h.Older(buf)
-		require.False(t, ok)
-		require.Equal(t, "", older.Text())
-	})
-
 	t.Run("BaseFooWithChanges", func(t *testing.T) {
+		session, err := NewSession("foo", OptionDisablePrompt())
+		require.NoError(t, err)
+
 		h := NewHistory(
-			&Session{
-				Base: "foo",
-			}, []*Entry{
+			session, []*Entry{
 				{
 					Base:    "foo",
 					Cmd:     "a",
 					changes: "A",
 				},
-				{},
 			},
 		)
 
@@ -115,27 +126,10 @@ func TestHistoryOlder(t *testing.T) {
 
 func TestHistoryNewer(t *testing.T) {
 	t.Run("WrappedCommandFoo", func(t *testing.T) {
-		h := NewHistory(
-			&Session{
-				Base: "foo",
-			}, entries,
-		).(*history)
-		h.current = 0
+		session, err := NewSession("foo", OptionDisablePrompt())
+		require.NoError(t, err)
 
-		buf := prompt.NewBuffer()
-		buf.InsertText("", false, true)
-
-		newer, ok := h.Newer(buf)
-		require.False(t, ok)
-		require.Equal(t, "", newer.Text())
-	})
-
-	t.Run("WrappedCommandFoo", func(t *testing.T) {
-		h := NewHistory(
-			&Session{
-				Base: "bar",
-			}, entries,
-		).(*history)
+		h := NewHistory(session, entries).(*history)
 		h.current = 0
 
 		buf := prompt.NewBuffer()
@@ -144,6 +138,33 @@ func TestHistoryNewer(t *testing.T) {
 		newer, ok := h.Newer(buf)
 		require.True(t, ok)
 		require.Equal(t, "b", newer.Text())
+
+		newer, ok = h.Newer(buf)
+		require.True(t, ok)
+		require.Equal(t, "", newer.Text())
+
+		newer, ok = h.Newer(buf)
+		require.False(t, ok)
+		require.Equal(t, "", newer.Text())
+	})
+
+	t.Run("WrappedCommandBar", func(t *testing.T) {
+		session, err := NewSession("bar", OptionDisablePrompt())
+		require.NoError(t, err)
+
+		h := NewHistory(session, entries).(*history)
+		h.current = 0
+
+		buf := prompt.NewBuffer()
+		buf.InsertText("", false, true)
+
+		newer, ok := h.Newer(buf)
+		require.True(t, ok)
+		require.Equal(t, "a", newer.Text())
+
+		newer, ok = h.Newer(buf)
+		require.True(t, ok)
+		require.Equal(t, "", newer.Text())
 
 		newer, ok = h.Newer(buf)
 		require.False(t, ok)
@@ -161,7 +182,6 @@ func TestHistoryNewer(t *testing.T) {
 					Cmd:     "a",
 					changes: "A",
 				},
-				{},
 			},
 		).(*history)
 		h.current = 0
@@ -173,4 +193,48 @@ func TestHistoryNewer(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, "A", older.Text())
 	})
+}
+
+func TestHistoryFullTraverse(t *testing.T) {
+	session, err := NewSession("foo", OptionDisablePrompt())
+	require.NoError(t, err)
+
+	history := NewHistory(session, []*Entry{
+		{
+			Base:    "foo",
+			Cmd:     "a",
+			changes: "xyz",
+		},
+		{
+			Base: "bar",
+			Cmd:  "a",
+		},
+		{
+			Base: "foo",
+			Cmd:  "b",
+		},
+	})
+
+	buf := prompt.NewBuffer()
+	buf.InsertText("abc", false, true)
+
+	older, found := history.Older(buf)
+	assert.True(t, found)
+	assert.Equal(t, "b", older.Text())
+
+	older, found = history.Older(older)
+	assert.True(t, found)
+	assert.Equal(t, "xyz", older.Text())
+
+	older, found = history.Older(older)
+	assert.False(t, found)
+	assert.Equal(t, "xyz", older.Text())
+
+	newer, found := history.Newer(older)
+	assert.True(t, found)
+	assert.Equal(t, "b", newer.Text())
+
+	newer, found = history.Newer(newer)
+	assert.True(t, found)
+	assert.Equal(t, "abc", newer.Text())
 }

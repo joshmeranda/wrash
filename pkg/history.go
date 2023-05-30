@@ -33,6 +33,7 @@ type history struct {
 }
 
 func (h *history) Add(inputs ...string) {
+	// todo: ignore duplicates
 	h.entries = h.entries[:len(h.entries)-1]
 	for _, s := range inputs {
 		if s == "" {
@@ -49,7 +50,9 @@ func (h *history) Add(inputs ...string) {
 			Cmd:  s,
 		})
 	}
-	h.entries = append(h.entries, &Entry{})
+	h.entries = append(h.entries, &Entry{
+		Base: h.session.Base,
+	})
 }
 
 func (h *history) Clear() {
@@ -77,7 +80,7 @@ func (h *history) nextOlder(text string) (*Entry, bool) {
 
 func (h *history) Older(buf *prompt.Buffer) (*prompt.Buffer, bool) {
 	for next, ok := h.nextOlder(buf.Text()); ok; next, ok = h.nextOlder(buf.Text()) {
-		if next.Base == h.session.Base {
+		if next.Base == h.session.Base || isBuiltin(next.Cmd) {
 			var text string
 			if next.changes != "" {
 				text = next.changes
@@ -113,7 +116,7 @@ func (h *history) nextNewer(text string) (*Entry, bool) {
 
 func (h *history) Newer(buf *prompt.Buffer) (*prompt.Buffer, bool) {
 	for next, ok := h.nextNewer(buf.Text()); ok; next, ok = h.nextNewer(buf.Text()) {
-		if next.Base == h.session.Base {
+		if next.Base == h.session.Base || isBuiltin(next.Cmd) {
 			var text string
 			if next.changes != "" {
 				text = next.changes
@@ -127,6 +130,7 @@ func (h *history) Newer(buf *prompt.Buffer) (*prompt.Buffer, bool) {
 			return new, true
 		}
 	}
+	fmt.Println()
 
 	return buf, false
 }
@@ -152,7 +156,9 @@ func (h *history) Sync() error {
 func NewHistory(session *Session, entries []*Entry) prompt.History {
 	newEntries := make([]*Entry, len(entries), len(entries)+1)
 	copy(newEntries, entries)
-	newEntries = append(newEntries, &Entry{})
+	newEntries = append(newEntries, &Entry{
+		Base: session.Base,
+	})
 
 	return &history{
 		entries: newEntries,

@@ -102,7 +102,7 @@ func (s *Session) doHistory(ctx *cli.Context) error {
 	n := ctx.Int("number")
 	show := ctx.Bool("show")
 
-	matched := lo.FilterMap(s.history.entries, func(entry *Entry, _ int) (string, bool) {
+	matched := lo.FilterMap(s.history.entries[:len(s.history.entries)-1], func(entry *Entry, _ int) (string, bool) {
 		if !(entry.Base == s.Base && pattern.MatchString(entry.Cmd)) {
 			return "", false
 		}
