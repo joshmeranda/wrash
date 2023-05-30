@@ -13,9 +13,8 @@ TAG=$(shell git tag --contains HEAD)
 
 ifeq ($(TAG),)
 $(info no tag found for HEAD, generating... )
-TAG="$(shell git tag --sort version:refname --list | tail --lines 1)-$(shell git log --oneline -1)"
-else
-$(info tag found for HEAD: '${TAG}')
+TAG="$(shell git tag --sort version:refname --list | tail --lines 1)-$(shell git rev-parse HEAD)"
+$(info using tag ${TAG})
 endif
 
 .PHONY: help
