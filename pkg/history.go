@@ -33,10 +33,15 @@ type history struct {
 }
 
 func (h *history) Add(inputs ...string) {
-	// todo: ignore duplicates
 	h.entries = h.entries[:len(h.entries)-1]
+
+	var lastEntry *Entry
+	if len(h.entries) >= 1 {
+		lastEntry = h.entries[len(h.entries)-1]
+	}
+
 	for _, s := range inputs {
-		if s == "" {
+		if s == "" || lastEntry != nil && s == lastEntry.Cmd {
 			continue
 		}
 

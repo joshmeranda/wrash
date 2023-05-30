@@ -24,40 +24,118 @@ var entries = []*Entry{
 }
 
 func TestHistoryAdd(t *testing.T) {
-	session, err := NewSession("foo", OptionDisablePrompt())
-	require.NoError(t, err)
+	t.Run("Unique", func(t *testing.T) {
+		session, err := NewSession("foo", OptionDisablePrompt())
+		require.NoError(t, err)
 
-	h := NewHistory(session, []*Entry{}).(*history)
-	assert.Equal(t, []*Entry{
-		{
-			Base: session.Base,
-		},
-	}, h.entries)
+		h := NewHistory(session, []*Entry{}).(*history)
+		assert.Equal(t, []*Entry{
+			{
+				Base: session.Base,
+			},
+		}, h.entries)
 
-	h.Add("bar")
-	assert.Equal(t, []*Entry{
-		{
-			Base: session.Base,
-			Cmd:  "bar",
-		},
-		{
-			Base: session.Base,
-		},
-	}, h.entries)
+		h.Add("bar")
+		assert.Equal(t, []*Entry{
+			{
+				Base: session.Base,
+				Cmd:  "bar",
+			},
+			{
+				Base: session.Base,
+			},
+		}, h.entries)
 
-	h.Add("!!help")
-	assert.Equal(t, []*Entry{
-		{
-			Base: session.Base,
-			Cmd:  "bar",
-		},
-		{
-			Cmd: "!!help",
-		},
-		{
-			Base: session.Base,
-		},
-	}, h.entries)
+		h.Add("!!help")
+		assert.Equal(t, []*Entry{
+			{
+				Base: session.Base,
+				Cmd:  "bar",
+			},
+			{
+				Cmd: "!!help",
+			},
+			{
+				Base: session.Base,
+			},
+		}, h.entries)
+	})
+
+	t.Run("DuplicateSameBase", func(t *testing.T) {
+		session, err := NewSession("foo", OptionDisablePrompt())
+		require.NoError(t, err)
+
+		h := NewHistory(session, []*Entry{
+			{
+				Base: "foo",
+				Cmd:  "a",
+			},
+		}).(*history)
+		assert.Equal(t, []*Entry{
+			{
+				Base: session.Base,
+				Cmd:  "a",
+			},
+			{
+				Base: session.Base,
+			},
+		}, h.entries)
+
+		h.Add("a")
+		assert.Equal(t, []*Entry{
+			{
+				Base: session.Base,
+				Cmd:  "a",
+			},
+			{
+				Base: session.Base,
+			},
+		}, h.entries)
+	})
+
+	t.Run("DuplicateDifferentBase", func(t *testing.T) {
+		session, err := NewSession("foo", OptionDisablePrompt())
+		require.NoError(t, err)
+
+		h := NewHistory(session, []*Entry{
+			{
+				Base: "foo",
+				Cmd:  "a",
+			},
+			{
+				Base: "bar",
+				Cmd:  "a",
+			},
+		}).(*history)
+		assert.Equal(t, []*Entry{
+			{
+				Base: session.Base,
+				Cmd:  "a",
+			},
+			{
+				Base: "bar",
+				Cmd:  "a",
+			},
+			{
+				Base: session.Base,
+			},
+		}, h.entries)
+
+		h.Add("a")
+		assert.Equal(t, []*Entry{
+			{
+				Base: session.Base,
+				Cmd:  "a",
+			},
+			{
+				Base: "bar",
+				Cmd:  "a",
+			},
+			{
+				Base: session.Base,
+			},
+		}, h.entries)
+	})
 }
 
 func TestHistoryOlder(t *testing.T) {
