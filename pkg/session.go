@@ -127,7 +127,6 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 }
 
 func (s *Session) initApps() {
-	// todo: might be worth using the stderr/out/in of the Session
 	s.apps = make(map[string]*cli.App)
 
 	s.apps["cd"] = &cli.App{
@@ -136,6 +135,10 @@ func (s *Session) initApps() {
 		Description: "change the working directory of the shell",
 		Flags:       []cli.Flag{},
 		Action:      s.doCd,
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
 	}
 
 	s.apps["exit"] = &cli.App{
@@ -143,6 +146,10 @@ func (s *Session) initApps() {
 		Usage:       "exit [CODE]",
 		Description: "exit the shell",
 		Action:      s.doExit,
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
 	}
 
 	s.apps["help"] = &cli.App{
@@ -150,6 +157,10 @@ func (s *Session) initApps() {
 		Usage:       "help",
 		Description: "view help text",
 		Action:      s.doHelp,
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
 	}
 
 	s.apps["history"] = &cli.App{
@@ -169,6 +180,10 @@ func (s *Session) initApps() {
 				Usage:   "include the base command in the output",
 			},
 		},
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
 	}
 }
 
@@ -204,9 +219,9 @@ func (s *Session) executor(str string) {
 		}
 
 		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Stdin = os.Stdin
+		cmd.Stdout = s.stdout
+		cmd.Stderr = s.stderr
+		cmd.Stdin = s.stdin
 
 		if err := cmd.Run(); err != nil {
 			switch err := err.(type) {

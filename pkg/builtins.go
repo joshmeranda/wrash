@@ -62,6 +62,10 @@ func (s *Session) doExit(ctx *cli.Context) error {
 }
 
 func (s *Session) doHelp(*cli.Context) error {
+	if s.apps == nil {
+		return fmt.Errorf("apps was not initialized")
+	}
+
 	// todo: we might can generate this dynamically (assuming s.initApps is called)
 	fmt.Fprintln(s.stdout, `Thanks for using WraSh!
 
