@@ -6,8 +6,18 @@ require (
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/joshmeranda/go-prompt v0.3.0
 	github.com/samber/lo v1.38.1
-	gopkg.in/yaml.v3 v3.0.1
 	github.com/urfave/cli/v2 v2.25.4
+	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
+	modernc.org/golex v1.0.5
+	modernc.org/goyacc v1.0.3
+	modernc.org/mathutil v1.5.0
+	modernc.org/parser v1.0.7
+	modernc.org/sortutil v1.1.1
+	modernc.org/strutil v1.1.3
+	modernc.org/y v1.0.9
 )
 
 require (
@@ -19,6 +29,7 @@ require (
 	github.com/mattn/go-tty v0.0.3 // indirect
 	github.com/pkg/term v1.2.0-beta.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20200410134404-eec4a21b6bb0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/stretchr/testify v1.8.3 // indirect

@@ -1,10 +1,12 @@
 GO_BUILD=go build -race
 GO_FMT=go fmt
 GO_TEST=go test
+GO_GENERATE=go generate
 
 ifdef VERBOSE
         GO_BUILD += -v -x
         GO_TEST += -test.v
+		GO_GENERATE += -v -x
 
         RM += --verbose
 endif
@@ -38,7 +40,12 @@ help:
 
 SOURCES=$(shell find . -name '*.go')
 
-build: wrash
+build: generate wrash
+
+generate: pkg/args/yyparser.go
+
+pkg/args/yyparser.go: pkg/args/args.y
+	${GO_GENERATE} ./pkg/args/parse.go
 
 wrash: bin/wrash
 
