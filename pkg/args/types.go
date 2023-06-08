@@ -15,8 +15,8 @@ type Position struct {
 }
 
 type Node interface {
-	// Returns the value of the node after expansion.
-	Expand(environment) string
+	// Returns the value of the node after expansion. If the node shuold be split accross multiple arguments (as for glob expansions), it will return multiple values.
+	Expand(environment) []string
 }
 
 type Word struct {
@@ -41,13 +41,13 @@ func (w *Word) stripEscappedWildcards() (stripped string, foundUnescapped bool) 
 	return
 }
 
-func (w *Word) Expand(environment) string {
+func (w *Word) Expand(environment) []string {
 	if w.IsQuoted {
-		return w.Value
+		return []string{w.Value}
 	}
 
 	if stripped, found := w.stripEscappedWildcards(); !found {
-		return stripped
+		return []string{stripped}
 	}
 
 	paths, err := filepath.Glob(w.Value)
@@ -56,54 +56,56 @@ func (w *Word) Expand(environment) string {
 	}
 
 	// todo: do something when there are no matches
-
-	return strings.Join(lo.Map(paths, func(path string, _ int) string {
+	return lo.Map(paths, func(path string, _ int) string {
 		if strings.Contains(path, " ") {
 			return "'" + path + "'"
 		} else {
 			return path
 		}
-	}), " ")
+	})
 }
 
 type SingleQuote struct {
 	Value string
 }
 
-func (q *SingleQuote) Expand(environment) string {
-	return q.Value
+func (q *SingleQuote) Expand(environment) []string {
+	return []string{q.Value}
 }
 
 type DoubleQuote struct {
 	Nodes []Node
 }
 
-func (q *DoubleQuote) Expand(env environment) string {
-	return lo.Reduce(q.Nodes, func(acc string, node Node, _ int) string {
-		return acc + node.Expand(env)
-	}, "")
+func (q *DoubleQuote) Expand(env environment) []string {
+	return []string{
+		lo.Reduce(q.Nodes, func(acc string, node Node, _ int) string {
+			// double quoted globs should not expanded, and should always have at least 1 element
+			return acc + node.Expand(env)[0]
+		}, ""),
+	}
 }
 
 type VariableExpansion struct {
 	Name string
 }
 
-func (q *VariableExpansion) Expand(env environment) string {
-	return env(q.Name)
+func (q *VariableExpansion) Expand(env environment) []string {
+	return []string{env(q.Name)}
 }
 
 type Arg []Node
 
-func (arg Arg) Expand(env environment) string {
-	return lo.Reduce(arg, func(acc string, node Node, _ int) string {
-		return acc + node.Expand(env)
-	}, "")
+func (arg Arg) Expand(env environment) []string {
+	return lo.Flatten(lo.Map(arg, func(node Node, _ int) []string {
+		return node.Expand(env)
+	}))
 }
 
 type Command []Arg
 
-func (cmd Command) Expand(env environment) string {
-	return lo.Reduce(cmd, func(acc string, arg Arg, _ int) string {
-		return acc + arg.Expand(env)
-	}, "")
+func (cmd Command) Expand(env environment) []string {
+	return lo.Flatten(lo.Map(cmd, func(arg Arg, _ int) []string {
+		return arg.Expand(env)
+	}))
 }

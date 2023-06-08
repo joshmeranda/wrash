@@ -20,7 +20,7 @@ func TestExpandWord(t *testing.T) {
 	type testCase struct {
 		Name string
 		Node Node
-		Out  string
+		Out  []string
 	}
 
 	cases := []testCase{
@@ -30,40 +30,40 @@ func TestExpandWord(t *testing.T) {
 			Node: &Word{
 				Value: "abc",
 			},
-			Out: "abc",
+			Out: []string{"abc"},
 		},
 		{
 			Name: "WordWithWildcard",
 			Node: &Word{
 				Value: path.Join(testDir, "a*_file"),
 			},
-			Out: path.Join(testDir, "a_file") + " " + path.Join(testDir, "another_file"),
+			Out: []string{path.Join(testDir, "a_file"), path.Join(testDir, "another_file")},
 		},
 		{
 			Name: "WordWithEscapedWildcard",
 			Node: &Word{
 				Value: path.Join(testDir, "a\\*_file"),
 			},
-			Out: path.Join(testDir, "a*_file"),
+			Out: []string{path.Join(testDir, "a*_file")},
 		},
 
 		// variable expansion
 		{
 			Name: "VariableExpansion",
 			Node: &VariableExpansion{"SOME_VAR"},
-			Out:  "some value",
+			Out:  []string{"some value"},
 		},
 		{
 			Name: "EmptyVariableExpansion",
 			Node: &VariableExpansion{"NO_EXIST"},
-			Out:  "",
+			Out:  []string{""},
 		},
 
 		// single qquote
 		{
 			Name: "SingleQuote",
 			Node: &SingleQuote{"a'b'c"},
-			Out:  "a'b'c",
+			Out:  []string{"a'b'c"},
 		},
 
 		// double quote
@@ -78,7 +78,7 @@ func TestExpandWord(t *testing.T) {
 					&VariableExpansion{"SOMETHING"},
 				},
 			},
-			Out: "value of SOMETHING: something",
+			Out: []string{"value of SOMETHING: something"},
 		},
 		{
 			Name: "DoubleQuoteWithQildcard",
@@ -90,7 +90,7 @@ func TestExpandWord(t *testing.T) {
 					},
 				},
 			},
-			Out: "*",
+			Out: []string{"*"},
 		},
 	}
 

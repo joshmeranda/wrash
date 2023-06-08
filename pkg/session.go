@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/google/shlex"
 	prompt "github.com/joshmeranda/go-prompt"
+	"github.com/joshmeranda/wrash/pkg/args"
 	"github.com/urfave/cli/v2"
 )
 
@@ -193,14 +193,18 @@ func (s *Session) executor(str string) {
 		return
 	}
 
+	cmd, err := args.Parse(str)
+	if err != nil {
+		fmt.Fprintf(s.stderr, "could not parse args: %s", err)
+		return
+	}
+
+	args := []string{s.Base}
+	args = append(args, cmd.Expand(os.Getenv)...)
+
 	s.previousExitCode = 0
 
 	if isBuiltin(str) {
-		args, err := shlex.Split(str[2:])
-		if err != nil {
-			fmt.Fprintf(s.stderr, "could not parse input: %s\n", err)
-		}
-
 		app, found := s.apps[args[0]]
 		if !found {
 			fmt.Fprintf(s.stderr, "unknown command: %s\n", args[0])
@@ -213,11 +217,6 @@ func (s *Session) executor(str string) {
 			s.previousExitCode = 127
 		}
 	} else {
-		args, err := shlex.Split(s.Base + " " + str)
-		if err != nil {
-			fmt.Printf("could not parse input: %s\n", err)
-		}
-
 		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Stdout = s.stdout
 		cmd.Stderr = s.stderr
