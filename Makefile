@@ -1,10 +1,12 @@
 GO_BUILD=go build -race
 GO_FMT=go fmt
 GO_TEST=go test
+GO_GENERATE=go generate
 
 ifdef VERBOSE
         GO_BUILD += -v -x
         GO_TEST += -test.v
+		GO_GENERATE += -v -x
 
         RM += --verbose
 endif

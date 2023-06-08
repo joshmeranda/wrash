@@ -29,3 +29,6 @@ go.work
 target
 
 .vscode
+
+# generated files
+bin
