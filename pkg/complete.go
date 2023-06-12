@@ -10,7 +10,7 @@ import (
 
 // todo: add support for loading completers from a config file
 
-// todo: ideally we'd be able to show the completions with oonly the basenames (prompt.Suggeestion previews)
+// todo: ideally we'd be able to show the completions with only the basenames (prompt.Suggeestion previews)
 // todo: don't cleanup the './' in the path
 func getFilesWithPrefix(prefix string) []prompt.Suggest {
 	if prefix == "" {

@@ -66,23 +66,25 @@ func (s *Session) doHelp(*cli.Context) error {
 		return fmt.Errorf("apps was not initialized")
 	}
 
-	// todo: we might can generate this dynamically (assuming s.initApps is called)
-	fmt.Fprintln(s.stdout, `Thanks for using WraSh!
+	helpMsg := `Thanks for using WraSh!
 
-	WraSh is designed to provide a very minimal interactive wrapper shell around a
-	base command. For example if the base command was 'git', you could call
-	'add -A' rather then 'git add -A'.
-	
-	You may also call all the normal commands on your system with WraSh. You need
-	to simply change the operation mode with 'mode normal' run any commands you
-	want like 'whoami' or even 'rm -rf --no-preserve-root /' then change back to
-	wrapper mode 'setmode wrapper'
-	
-	Below is a list of supported builtins, pass '--help' to any o them for more information:
-		exit       exit the shell with a given status code
-		cd         change the current working directory of the shell
-		help | ?   show this help text
-		history    show and filter shell command history`)
+WraSh is designed to provide a very minimal interactive wrapper shell around a
+base command. For example if the base command was 'git', you could call
+'add -A' rather then 'git add -A'.
+
+Below is a list of supported builtins, pass '--help' to any o them for more information:`
+
+	maxLen := lo.Max(lo.Map(lo.Keys(s.apps), func(s string, _ int) int {
+		return len(s)
+	})) + 4
+
+	format := fmt.Sprintf("\n   %% -%ds%%s", maxLen)
+
+	for name, app := range s.apps {
+		helpMsg += fmt.Sprintf(format, name, app.Description)
+	}
+
+	fmt.Fprintln(s.stdout, helpMsg)
 
 	return nil
 }
