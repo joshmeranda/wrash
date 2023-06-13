@@ -188,7 +188,8 @@ func (s *Session) initApps() {
 }
 
 func (s *Session) executor(str string) {
-	// todo: might need to defer a history reset
+	defer s.history.Clear()
+
 	if str == "" {
 		return
 	}
