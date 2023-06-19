@@ -12,7 +12,7 @@ import (
 
 type ArgKind string
 
-func LoadSuggestions(p string) (*CommandSuggestion, error) {
+func LoadSuggestions(p string) (Suggestor, error) {
 	bytes, err := os.ReadFile(p)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file '%s': %w", p, err)
@@ -32,6 +32,10 @@ const (
 	KindPath    ArgKind = "path"
 	KindNone    ArgKind = "none"
 )
+
+type Suggestor interface {
+	Suggest(args []string) []prompt.Suggest
+}
 
 type Arg struct {
 	Kind    ArgKind  `yaml:"kind"`
@@ -116,4 +120,10 @@ func (s *CommandSuggestion) Suggest(args []string) []prompt.Suggest {
 	default:
 		return []prompt.Suggest{}
 	}
+}
+
+type EmptySuggestor struct{}
+
+func (s *EmptySuggestor) Suggest(args []string) []prompt.Suggest {
+	return []prompt.Suggest{}
 }

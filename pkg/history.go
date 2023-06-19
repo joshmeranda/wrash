@@ -2,21 +2,11 @@ package wrash
 
 import (
 	"fmt"
-	"os"
-	"path"
+	"io"
 
 	prompt "github.com/joshmeranda/go-prompt"
 	"gopkg.in/yaml.v3"
 )
-
-func GetHistoryFile() (string, error) {
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("could not determine user home directory: %w", err)
-	}
-
-	return path.Join(dir, ".wrash_history.yaml"), nil
-}
 
 type Entry struct {
 	Base string
@@ -29,7 +19,8 @@ type history struct {
 	entries []*Entry
 
 	current int
-	session *Session
+	base    string
+	w       io.Writer
 }
 
 func (h *history) Add(inputs ...string) {
@@ -45,7 +36,7 @@ func (h *history) Add(inputs ...string) {
 			continue
 		}
 
-		base := h.session.Base
+		base := h.base
 		if isBuiltin(s) {
 			base = ""
 		}
@@ -56,7 +47,7 @@ func (h *history) Add(inputs ...string) {
 		})
 	}
 	h.entries = append(h.entries, &Entry{
-		Base: h.session.Base,
+		Base: h.base,
 	})
 }
 
@@ -85,7 +76,7 @@ func (h *history) nextOlder(text string) (*Entry, bool) {
 
 func (h *history) Older(buf *prompt.Buffer) (*prompt.Buffer, bool) {
 	for next, ok := h.nextOlder(buf.Text()); ok; next, ok = h.nextOlder(buf.Text()) {
-		if next.Base == h.session.Base || isBuiltin(next.Cmd) {
+		if next.Base == h.base || isBuiltin(next.Cmd) {
 			var text string
 			if next.changes != "" {
 				text = next.changes
@@ -121,7 +112,7 @@ func (h *history) nextNewer(text string) (*Entry, bool) {
 
 func (h *history) Newer(buf *prompt.Buffer) (*prompt.Buffer, bool) {
 	for next, ok := h.nextNewer(buf.Text()); ok; next, ok = h.nextNewer(buf.Text()) {
-		if next.Base == h.session.Base || isBuiltin(next.Cmd) {
+		if next.Base == h.base || isBuiltin(next.Cmd) {
 			var text string
 			if next.changes != "" {
 				text = next.changes
@@ -146,28 +137,23 @@ func (h *history) Sync() error {
 		return fmt.Errorf("could not marshal history entries: %w", err)
 	}
 
-	historyPath, err := GetHistoryFile()
-	if err != nil {
-		return fmt.Errorf("could not get history file: %w", err)
-	}
-
-	if err := os.WriteFile(historyPath, data, 0644); err != nil {
+	if _, err := h.w.Write(data); err != nil {
 		return fmt.Errorf("could not sync history: %w", err)
 	}
 
 	return nil
 }
 
-func NewHistory(session *Session, entries []*Entry) prompt.History {
+func NewHistory(base string, w io.Writer, entries []*Entry) prompt.History {
 	newEntries := make([]*Entry, len(entries), len(entries)+1)
 	copy(newEntries, entries)
 	newEntries = append(newEntries, &Entry{
-		Base: session.Base,
+		Base: base,
 	})
 
 	return &history{
 		entries: newEntries,
 		current: len(newEntries) - 1,
-		session: session,
+		base:    base,
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -58,6 +59,12 @@ func goPreviousBoundary(buff *prompt.Buffer) {
 	buff.CursorLeft(boundary)
 }
 
+type sinkWriter struct{}
+
+func (sinkWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
 type Session struct {
 	Base string
 
@@ -73,6 +80,7 @@ type Session struct {
 	previousExitCode int
 	apps             map[string]*cli.App
 	isFrozen         bool
+	suggestor        Suggestor
 }
 
 func NewSession(base string, opts ...Option) (*Session, error) {
@@ -91,7 +99,7 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 	}
 
 	if session.history == nil {
-		session.history = NewHistory(session, make([]*Entry, 0)).(*history)
+		session.history = NewHistory(base, sinkWriter{}, make([]*Entry, 0)).(*history)
 	}
 
 	session.initApps()
@@ -202,7 +210,8 @@ func (s *Session) executor(str string) {
 	s.previousExitCode = 0
 
 	if isBuiltin(str) {
-		app, found := s.apps[args[0]]
+		args = args[1:]
+		app, found := s.apps[args[0][2:]]
 		if !found {
 			fmt.Fprintf(s.stderr, "unknown command: %s\n", args[0])
 			s.previousExitCode = 127
@@ -237,10 +246,33 @@ func (s *Session) livePrefix() (string, bool) {
 	return fmt.Sprintf("[%s %s] %s > ", user, wd, s.Base), true
 }
 
-// todo: load completions from a file
-// todo: add completions for builtins
 func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
-	return fileCompleter(doc)
+	var suggestions []prompt.Suggest
+
+	switch {
+	case strings.HasPrefix(doc.TextBeforeCursor(), "!!"):
+		suggestions = lo.MapToSlice(s.apps, func(name string, app *cli.App) prompt.Suggest {
+			return prompt.Suggest{
+				Text:        "!!" + app.Name,
+				Description: app.Description,
+			}
+		})
+	case s.suggestor != nil:
+		command, err := args.Parse(doc.TextBeforeCursor())
+		if err != nil {
+			return []prompt.Suggest{}
+		}
+		args := command.Expand(os.Getenv)
+		suggestions = s.suggestor.Suggest(args)
+	default:
+		return []prompt.Suggest{}
+	}
+
+	sort.Slice(suggestions, func(i, j int) bool {
+		return suggestions[i].Text < suggestions[j].Text
+	})
+
+	return suggestions
 }
 
 func (s *Session) Run() {
