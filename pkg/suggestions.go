@@ -1,36 +1,119 @@
 package wrash
 
-type ArgKind string
+import (
+	"fmt"
+	"os"
+	"path/filepath"
 
-const (
-	KindValue   ArgKind = "value"
-	KindDefault ArgKind = KindValue
-	KindPath    ArgKind = "path"
+	"github.com/joshmeranda/go-prompt"
+	"github.com/samber/lo"
+	"gopkg.in/yaml.v3"
 )
 
-type ArgOptions struct {
+type ArgKind string
+
+func LoadSuggestions(p string) (*CommandSuggestion, error) {
+	bytes, err := os.ReadFile(p)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file '%s': %w", p, err)
+	}
+
+	suggestions := &CommandSuggestion{}
+	if err := yaml.Unmarshal(bytes, suggestions); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal yaml: %w", err)
+	}
+
+	return suggestions, nil
+}
+
+const (
+	KindDefault ArgKind = ""
+	KindValue   ArgKind = "value"
+	KindPath    ArgKind = "path"
+	KindNone    ArgKind = "none"
+)
+
+type Arg struct {
 	Kind    ArgKind  `yaml:"kind"`
 	Choices []string `yaml:"choices"`
 }
 
-type FlagSuggestion struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
+func (o *Arg) Suggest() []prompt.Suggest {
+	switch o.Kind {
+	case KindDefault, KindValue:
+		return lo.Map(o.Choices, func(choice string, _ int) prompt.Suggest {
+			return prompt.Suggest{
+				Text: choice,
+			}
+		})
+	case KindPath:
+		found, err := filepath.Glob("*")
+		if err != nil {
+			return []prompt.Suggest{}
+		}
 
-	Opts *ArgOptions `yaml:"opts"`
+		return lo.Map(found, func(path string, _ int) prompt.Suggest {
+			return prompt.Suggest{
+				Text: path,
+			}
+		})
+	case KindNone:
+		fallthrough
+	default:
+		return []prompt.Suggest{}
+	}
+}
+
+type FlagSuggestion struct {
+	Description string `yaml:"description"`
+	Opts        Arg    `yaml:"opts"`
 }
 
 type CommandSuggestion struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-
-	Opts *ArgOptions `yaml:"opts"`
-
-	Flags       []FlagSuggestion    `yaml:"flags"`
-	SubCommands []CommandSuggestion `yaml:"subcommands"`
+	Description string                       `yaml:"description"`
+	SubCommands map[string]CommandSuggestion `yaml:"subcommands"`
+	Flags       map[string]FlagSuggestion    `yaml:"flags"`
+	Opts        Arg                          `yaml:"opts"`
 }
 
-type Suggestions struct {
-	path string
-	cmd  CommandSuggestion
+func (s *CommandSuggestion) Suggest(args []string) []prompt.Suggest {
+	var endFlag *FlagSuggestion
+	lastSubCmd := s
+	i := 0
+
+	for ; i < len(args); i++ {
+		if sub, found := lastSubCmd.SubCommands[args[i]]; found {
+			lastSubCmd = &sub
+			endFlag = nil
+			continue
+		}
+
+		if flag, found := lastSubCmd.Flags[args[i]]; found {
+			endFlag = &flag
+			continue
+		}
+
+		endFlag = nil
+	}
+
+	switch {
+	case endFlag != nil:
+		return endFlag.Opts.Suggest()
+	case len(lastSubCmd.SubCommands) > 0:
+		return lo.MapToSlice(lastSubCmd.SubCommands, func(name string, subCmd CommandSuggestion) prompt.Suggest {
+			return prompt.Suggest{
+				Text:        name,
+				Description: subCmd.Description,
+			}
+		})
+	case len(lastSubCmd.Flags) > 0:
+		return lo.MapToSlice(lastSubCmd.Flags, func(name string, flag FlagSuggestion) prompt.Suggest {
+			return prompt.Suggest{
+				Text:        name,
+				Description: flag.Description,
+			}
+		})
+	default:
+		return []prompt.Suggest{}
+	}
 }

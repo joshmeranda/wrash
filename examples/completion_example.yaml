@@ -1,0 +1,20 @@
+description: "an example suggestion for wrash"
+flags:
+  "--help":
+    description: "show help for example"
+    opts:
+      kind: none
+subcommands:
+  "foo":
+    description: "foo subcommand"
+    flags:
+      --foo:
+        description: "takes some value"
+        opts:
+          choices:
+          - abc
+          - def
+      --bar:
+        description: "takes a path value"
+        opts:
+          kind: "path"

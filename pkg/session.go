@@ -10,6 +10,7 @@ import (
 
 	prompt "github.com/joshmeranda/go-prompt"
 	"github.com/joshmeranda/wrash/pkg/args"
+	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
 )
 
@@ -46,16 +47,11 @@ func goNextBoundary(buff *prompt.Buffer) {
 
 func goPreviousBoundary(buff *prompt.Buffer) {
 	startPosition := buff.DisplayCursorPosition()
-	text := buff.Text()
 
 	// todo: creatinga new reversed string like this is pretty expensive, we probblay want to update getNextBoundary to support a reverse mode
 	// reverse text
-	runes := []rune(text)
-	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-		runes[i], runes[j] = runes[j], runes[i]
-	}
+	text := string(lo.Reverse([]rune(buff.Text())))
 
-	text = string(runes)
 	startPosition = len(text) - startPosition
 
 	boundary := getNextBoundary(runeset, text[startPosition:])
