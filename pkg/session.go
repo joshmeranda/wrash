@@ -264,7 +264,7 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 		if err != nil {
 			return []prompt.Suggest{}
 		}
-		args := command.Expand(os.Getenv)
+		args := command.Args()
 		suggestions = s.suggestor.Suggest(args, doc.GetWordBeforeCursor()+doc.GetWordAfterCursor() == "")
 	default:
 		return []prompt.Suggest{}

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var testDir = path.Join("..", "..", "tests", "resources", "a_directory")
@@ -16,7 +17,7 @@ func testEnv(name string) string {
 	}[name]
 }
 
-func TestExpandWord(t *testing.T) {
+func TestNodeExpand(t *testing.T) {
 	type testCase struct {
 		Name string
 		Node Node
@@ -99,4 +100,10 @@ func TestExpandWord(t *testing.T) {
 			assert.Equal(t, tc.Out, tc.Node.Expand(testEnv))
 		})
 	}
+}
+
+func TestCommandArgs(t *testing.T) {
+	cmd, err := Parse("i 'want'   $NUM  \"$ITEM's\"")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"i", "'want'", "$NUM", "\"$ITEM's\""}, cmd.Args())
 }
