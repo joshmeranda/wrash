@@ -141,7 +141,7 @@ func nextDoubleQuote(s string) (Node, int, error) {
 	}
 }
 
-func parse(s string) (Command, error) {
+func Parse(s string) (Command, error) {
 	args := []Arg{}
 	var nodes []Node
 	var head int
@@ -195,13 +195,4 @@ func parse(s string) (Command, error) {
 	}
 
 	return Command(args), nil
-}
-
-func Parse(s string) (Command, error) {
-	cmd, err := parse(s)
-	if err != nil {
-		return nil, err
-	}
-
-	return cmd, nil
 }

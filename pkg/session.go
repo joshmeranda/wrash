@@ -251,11 +251,13 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 
 	switch {
 	case strings.HasPrefix(doc.TextBeforeCursor(), "!!"):
-		suggestions = lo.MapToSlice(s.apps, func(name string, app *cli.App) prompt.Suggest {
+		suggestions = lo.Filter(lo.MapToSlice(s.apps, func(name string, app *cli.App) prompt.Suggest {
 			return prompt.Suggest{
 				Text:        "!!" + app.Name,
 				Description: app.Description,
 			}
+		}), func(s prompt.Suggest, _ int) bool {
+			return strings.HasPrefix(s.Text, doc.TextBeforeCursor())
 		})
 	case s.suggestor != nil:
 		command, err := args.Parse(doc.TextBeforeCursor())
@@ -263,7 +265,7 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 			return []prompt.Suggest{}
 		}
 		args := command.Expand(os.Getenv)
-		suggestions = s.suggestor.Suggest(args)
+		suggestions = s.suggestor.Suggest(args, doc.GetWordBeforeCursor()+doc.GetWordAfterCursor() == "")
 	default:
 		return []prompt.Suggest{}
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/joshmeranda/go-prompt"
 	"github.com/samber/lo"
@@ -33,8 +34,14 @@ const (
 	KindNone    ArgKind = "none"
 )
 
+func valueWithPrefix[T any](prefix string, data map[string]T) map[string]T {
+	return lo.PickBy(data, func(key string, value T) bool {
+		return strings.HasPrefix(key, prefix)
+	})
+}
+
 type Suggestor interface {
-	Suggest(args []string) []prompt.Suggest
+	Suggest(args []string, completeLast bool) []prompt.Suggest
 }
 
 type Arg struct {
@@ -42,16 +49,20 @@ type Arg struct {
 	Choices []string `yaml:"choices"`
 }
 
-func (o *Arg) Suggest() []prompt.Suggest {
+func (o *Arg) Suggest(arg string) []prompt.Suggest {
 	switch o.Kind {
 	case KindDefault, KindValue:
-		return lo.Map(o.Choices, func(choice string, _ int) prompt.Suggest {
-			return prompt.Suggest{
-				Text: choice,
+		return lo.FilterMap(o.Choices, func(choice string, _ int) (prompt.Suggest, bool) {
+			if strings.HasPrefix(choice, arg) {
+				return prompt.Suggest{
+					Text: choice,
+				}, true
 			}
+
+			return prompt.Suggest{}, false
 		})
 	case KindPath:
-		found, err := filepath.Glob("*")
+		found, err := filepath.Glob(arg + "*")
 		if err != nil {
 			return []prompt.Suggest{}
 		}
@@ -80,7 +91,7 @@ type CommandSuggestion struct {
 	Opts        Arg                          `yaml:"opts"`
 }
 
-func (s *CommandSuggestion) Suggest(args []string) []prompt.Suggest {
+func (s *CommandSuggestion) Suggest(args []string, completeLast bool) []prompt.Suggest {
 	var endFlag *FlagSuggestion
 	lastSubCmd := s
 	i := 0
@@ -101,8 +112,29 @@ func (s *CommandSuggestion) Suggest(args []string) []prompt.Suggest {
 	}
 
 	switch {
+	case completeLast:
+		arg := args[i-1]
+		if subs := valueWithPrefix(arg, lastSubCmd.SubCommands); len(subs) > 0 {
+			return lo.MapToSlice(subs, func(name string, subCmd CommandSuggestion) prompt.Suggest {
+				return prompt.Suggest{
+					Text:        name,
+					Description: subCmd.Description,
+				}
+			})
+		}
+
+		if flags := valueWithPrefix(arg, lastSubCmd.Flags); len(flags) > 0 {
+			return lo.MapToSlice(flags, func(name string, flag FlagSuggestion) prompt.Suggest {
+				return prompt.Suggest{
+					Text:        name,
+					Description: flag.Description,
+				}
+			})
+		}
+
+		return []prompt.Suggest{}
 	case endFlag != nil:
-		return endFlag.Opts.Suggest()
+		return endFlag.Opts.Suggest("")
 	case len(lastSubCmd.SubCommands) > 0:
 		return lo.MapToSlice(lastSubCmd.SubCommands, func(name string, subCmd CommandSuggestion) prompt.Suggest {
 			return prompt.Suggest{
@@ -124,6 +156,6 @@ func (s *CommandSuggestion) Suggest(args []string) []prompt.Suggest {
 
 type EmptySuggestor struct{}
 
-func (s *EmptySuggestor) Suggest(args []string) []prompt.Suggest {
+func (s *EmptySuggestor) Suggest([]string, bool) []prompt.Suggest {
 	return []prompt.Suggest{}
 }

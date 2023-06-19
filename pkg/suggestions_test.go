@@ -56,9 +56,10 @@ func TestSuggest(t *testing.T) {
 	defer os.Chdir(oldDir)
 
 	type testCase struct {
-		name     string
-		args     []string
-		expected []prompt.Suggest
+		name         string
+		args         []string
+		completeLast bool
+		expected     []prompt.Suggest
 	}
 
 	testCases := []testCase{
@@ -87,6 +88,17 @@ func TestSuggest(t *testing.T) {
 			},
 		},
 		{
+			name:         "WithSubCommandPrefix",
+			args:         []string{"fo"},
+			completeLast: true,
+			expected: []prompt.Suggest{
+				{
+					Text:        "foo",
+					Description: "foo subcommand",
+				},
+			},
+		},
+		{
 			name: "FooWithFoo",
 			args: []string{"foo", "--foo"},
 			expected: []prompt.Suggest{
@@ -95,6 +107,17 @@ func TestSuggest(t *testing.T) {
 				},
 				{
 					Text: "def",
+				},
+			},
+		},
+		{
+			name:         "FooWithFooPrefix",
+			args:         []string{"foo", "--f"},
+			completeLast: true,
+			expected: []prompt.Suggest{
+				{
+					Text:        "--foo",
+					Description: "takes some value",
 				},
 			},
 		},
@@ -117,7 +140,7 @@ func TestSuggest(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := ExampleCommandSuggestion.Suggest(tc.args)
+			actual := ExampleCommandSuggestion.Suggest(tc.args, tc.completeLast)
 			sort.Slice(actual, func(i, j int) bool {
 				return actual[i].Text < actual[j].Text
 			})
