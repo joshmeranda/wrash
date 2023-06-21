@@ -155,5 +155,6 @@ func NewHistory(base string, w io.Writer, entries []*Entry) prompt.History {
 		entries: newEntries,
 		current: len(newEntries) - 1,
 		base:    base,
+		w:       w,
 	}
 }
