@@ -6,9 +6,18 @@ import (
 	"path"
 )
 
+const (
+	EnvCompletionDir = "WRASH_COMPLETION_DIR"
+	EnvHistoryFile   = "WRASH_HISTORY_FILE"
+)
+
 // todo: add enviornment variables for this
 
 func GetHistoryFile() (string, error) {
+	if path := os.Getenv(EnvHistoryFile); path != "" {
+		return path, nil
+	}
+
 	dir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("could not determine user home directory: %w", err)
@@ -18,6 +27,10 @@ func GetHistoryFile() (string, error) {
 }
 
 func getCompletionDir() (string, error) {
+	if path := os.Getenv(EnvCompletionDir); path != "" {
+		return path, nil
+	}
+
 	dir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("could not determine user home directory: %w", err)
