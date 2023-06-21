@@ -265,7 +265,8 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 			return []prompt.Suggest{}
 		}
 		args := command.Args()
-		suggestions = s.suggestor.Suggest(args, doc.GetWordBeforeCursor()+doc.GetWordAfterCursor() == "")
+		completeLast := doc.GetWordBeforeCursor()+doc.GetWordAfterCursor() != ""
+		suggestions = s.suggestor.Suggest(args, completeLast)
 	default:
 		return []prompt.Suggest{}
 	}

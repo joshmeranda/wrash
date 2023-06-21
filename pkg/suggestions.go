@@ -50,8 +50,7 @@ type Arg struct {
 }
 
 func (o *Arg) Suggest(arg string) []prompt.Suggest {
-	switch o.Kind {
-	case KindDefault, KindValue:
+	if len(o.Choices) > 0 || o.Kind == KindValue {
 		return lo.FilterMap(o.Choices, func(choice string, _ int) (prompt.Suggest, bool) {
 			if strings.HasPrefix(choice, arg) {
 				return prompt.Suggest{
@@ -61,6 +60,9 @@ func (o *Arg) Suggest(arg string) []prompt.Suggest {
 
 			return prompt.Suggest{}, false
 		})
+	}
+
+	switch o.Kind {
 	case KindPath:
 		found, err := filepath.Glob(arg + "*")
 		if err != nil {
@@ -72,7 +74,7 @@ func (o *Arg) Suggest(arg string) []prompt.Suggest {
 				Text: path,
 			}
 		})
-	case KindNone:
+	case KindDefault, KindNone:
 		fallthrough
 	default:
 		return []prompt.Suggest{}
@@ -112,8 +114,8 @@ func (s *CommandSuggestion) Suggest(args []string, completeLast bool) []prompt.S
 	}
 
 	switch {
-	case completeLast:
-		arg := args[i-1]
+	case completeLast && len(args) > 0:
+		arg := args[len(args)-1]
 		if subs := valueWithPrefix(arg, lastSubCmd.SubCommands); len(subs) > 0 {
 			return lo.MapToSlice(subs, func(name string, subCmd CommandSuggestion) prompt.Suggest {
 				return prompt.Suggest{
