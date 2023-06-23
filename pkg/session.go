@@ -10,6 +10,7 @@ import (
 
 	prompt "github.com/joshmeranda/go-prompt"
 	"github.com/joshmeranda/wrash/pkg/args"
+	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
 )
 
@@ -46,20 +47,21 @@ func goNextBoundary(buff *prompt.Buffer) {
 
 func goPreviousBoundary(buff *prompt.Buffer) {
 	startPosition := buff.DisplayCursorPosition()
-	text := buff.Text()
 
 	// todo: creatinga new reversed string like this is pretty expensive, we probblay want to update getNextBoundary to support a reverse mode
 	// reverse text
-	runes := []rune(text)
-	for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-		runes[i], runes[j] = runes[j], runes[i]
-	}
+	text := string(lo.Reverse([]rune(buff.Text())))
 
-	text = string(runes)
 	startPosition = len(text) - startPosition
 
 	boundary := getNextBoundary(runeset, text[startPosition:])
 	buff.CursorLeft(boundary)
+}
+
+type sinkWriter struct{}
+
+func (sinkWriter) Write(p []byte) (n int, err error) {
+	return len(p), nil
 }
 
 type Session struct {
@@ -77,6 +79,7 @@ type Session struct {
 	previousExitCode int
 	apps             map[string]*cli.App
 	isFrozen         bool
+	suggestor        Suggestor
 }
 
 func NewSession(base string, opts ...Option) (*Session, error) {
@@ -95,7 +98,7 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 	}
 
 	if session.history == nil {
-		session.history = NewHistory(session, make([]*Entry, 0)).(*history)
+		session.history = NewHistory(base, sinkWriter{}, make([]*Entry, 0)).(*history)
 	}
 
 	session.initApps()
@@ -206,7 +209,8 @@ func (s *Session) executor(str string) {
 	s.previousExitCode = 0
 
 	if isBuiltin(str) {
-		app, found := s.apps[args[0]]
+		args = args[1:]
+		app, found := s.apps[args[0][2:]]
 		if !found {
 			fmt.Fprintf(s.stderr, "unknown command: %s\n", args[0])
 			s.previousExitCode = 127
@@ -241,10 +245,32 @@ func (s *Session) livePrefix() (string, bool) {
 	return fmt.Sprintf("[%s %s] %s > ", user, wd, s.Base), true
 }
 
-// todo: load completions from a file
-// todo: add completions for builtins
 func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
-	return fileCompleter(doc)
+	var suggestions []prompt.Suggest
+
+	switch {
+	case strings.HasPrefix(doc.TextBeforeCursor(), "!!"):
+		suggestions = lo.Filter(lo.MapToSlice(s.apps, func(name string, app *cli.App) prompt.Suggest {
+			return prompt.Suggest{
+				Text:        "!!" + app.Name,
+				Description: app.Description,
+			}
+		}), func(s prompt.Suggest, _ int) bool {
+			return strings.HasPrefix(s.Text, doc.TextBeforeCursor())
+		})
+	case s.suggestor != nil:
+		command, err := args.Parse(doc.TextBeforeCursor())
+		if err != nil {
+			return []prompt.Suggest{}
+		}
+		args := command.Args()
+		completeLast := doc.GetWordBeforeCursor()+doc.GetWordAfterCursor() != ""
+		suggestions = s.suggestor.Suggest(args, completeLast)
+	default:
+		return []prompt.Suggest{}
+	}
+
+	return suggestions
 }
 
 func (s *Session) Run() {

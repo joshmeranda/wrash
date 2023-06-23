@@ -119,7 +119,7 @@ func TestHelp(t *testing.T) {
 func TestHistory(t *testing.T) {
 	session, err := NewSession("foo",
 		OptionDisablePrompt(),
-		OptionHistory([]*Entry{
+		OptionHistory(NewHistory("foo", sinkWriter{}, []*Entry{
 			{
 				Base: "foo",
 				Cmd:  "bar",
@@ -136,7 +136,8 @@ func TestHistory(t *testing.T) {
 				Base: "foo",
 				Cmd:  "baz",
 			},
-		}))
+		})),
+	)
 	require.NoError(t, err)
 
 	t.Run("NoPattern", func(t *testing.T) {

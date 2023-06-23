@@ -2,6 +2,8 @@ package wrash
 
 import (
 	"io"
+
+	prompt "github.com/joshmeranda/go-prompt"
 )
 
 type Option func(*Session) error
@@ -13,9 +15,16 @@ func OptionFrozen(freeze bool) Option {
 	}
 }
 
-func OptionHistory(entries []*Entry) Option {
+func OptionHistory(h prompt.History) Option {
 	return func(s *Session) error {
-		s.history = NewHistory(s, entries).(*history)
+		s.history = h.(*history)
+		return nil
+	}
+}
+
+func OptionSuggestor(suggestion Suggestor) Option {
+	return func(s *Session) error {
+		s.suggestor = suggestion
 		return nil
 	}
 }

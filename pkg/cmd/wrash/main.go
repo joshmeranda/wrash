@@ -37,7 +37,7 @@ func run(ctx *cli.Context) error {
 		return fmt.Errorf("no command provided")
 	}
 
-	historyPath, err := wrash.GetHistoryFile()
+	historyPath, err := GetHistoryFile()
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,25 @@ func run(ctx *cli.Context) error {
 		return err
 	}
 
-	session, err := wrash.NewSession(base, wrash.OptionHistory(entries))
+	historyWriter, err := os.Create(historyPath)
+	if err != nil {
+		return nil
+	}
+	defer historyWriter.Close()
+
+	history := wrash.NewHistory(base, historyWriter, entries)
+
+	completionPath, err := GetCompletionFile(base)
+	if err != nil {
+		return err
+	}
+
+	suggestor, err := wrash.LoadSuggestions(completionPath)
+	if err != nil {
+		suggestor = &wrash.EmptySuggestor{}
+	}
+
+	session, err := wrash.NewSession(base, wrash.OptionHistory(history), wrash.OptionSuggestor(suggestor))
 	if err != nil {
 		return err
 	}

@@ -24,48 +24,44 @@ var entries = []*Entry{
 }
 
 func TestHistoryAdd(t *testing.T) {
-	t.Run("Unique", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
-		require.NoError(t, err)
+	base := "foo"
 
-		h := NewHistory(session, []*Entry{}).(*history)
+	t.Run("Unique", func(t *testing.T) {
+		h := NewHistory(base, sinkWriter{}, []*Entry{}).(*history)
 		assert.Equal(t, []*Entry{
 			{
-				Base: session.Base,
+				Base: base,
 			},
 		}, h.entries)
 
 		h.Add("bar")
 		assert.Equal(t, []*Entry{
 			{
-				Base: session.Base,
+				Base: base,
 				Cmd:  "bar",
 			},
 			{
-				Base: session.Base,
+				Base: base,
 			},
 		}, h.entries)
 
 		h.Add("!!help")
 		assert.Equal(t, []*Entry{
 			{
-				Base: session.Base,
+				Base: base,
 				Cmd:  "bar",
 			},
 			{
 				Cmd: "!!help",
 			},
 			{
-				Base: session.Base,
+				Base: base,
 			},
 		}, h.entries)
 	})
 
 	t.Run("DuplicateSameBase", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
-		require.NoError(t, err)
-
-		h := NewHistory(session, []*Entry{
+		h := NewHistory(base, sinkWriter{}, []*Entry{
 			{
 				Base: "foo",
 				Cmd:  "a",
@@ -73,31 +69,28 @@ func TestHistoryAdd(t *testing.T) {
 		}).(*history)
 		assert.Equal(t, []*Entry{
 			{
-				Base: session.Base,
+				Base: base,
 				Cmd:  "a",
 			},
 			{
-				Base: session.Base,
+				Base: base,
 			},
 		}, h.entries)
 
 		h.Add("a")
 		assert.Equal(t, []*Entry{
 			{
-				Base: session.Base,
+				Base: base,
 				Cmd:  "a",
 			},
 			{
-				Base: session.Base,
+				Base: base,
 			},
 		}, h.entries)
 	})
 
 	t.Run("DuplicateDifferentBase", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
-		require.NoError(t, err)
-
-		h := NewHistory(session, []*Entry{
+		h := NewHistory(base, sinkWriter{}, []*Entry{
 			{
 				Base: "foo",
 				Cmd:  "a",
@@ -109,7 +102,7 @@ func TestHistoryAdd(t *testing.T) {
 		}).(*history)
 		assert.Equal(t, []*Entry{
 			{
-				Base: session.Base,
+				Base: base,
 				Cmd:  "a",
 			},
 			{
@@ -117,14 +110,14 @@ func TestHistoryAdd(t *testing.T) {
 				Cmd:  "a",
 			},
 			{
-				Base: session.Base,
+				Base: base,
 			},
 		}, h.entries)
 
 		h.Add("a")
 		assert.Equal(t, []*Entry{
 			{
-				Base: session.Base,
+				Base: base,
 				Cmd:  "a",
 			},
 			{
@@ -132,7 +125,7 @@ func TestHistoryAdd(t *testing.T) {
 				Cmd:  "a",
 			},
 			{
-				Base: session.Base,
+				Base: base,
 			},
 		}, h.entries)
 	})
@@ -140,10 +133,7 @@ func TestHistoryAdd(t *testing.T) {
 
 func TestHistoryOlder(t *testing.T) {
 	t.Run("BaseFoo", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
-		require.NoError(t, err)
-
-		h := NewHistory(session, entries)
+		h := NewHistory("foo", sinkWriter{}, entries)
 
 		buf := prompt.NewBuffer()
 		buf.InsertText("", false, true)
@@ -162,10 +152,7 @@ func TestHistoryOlder(t *testing.T) {
 	})
 
 	t.Run("BaseBar", func(t *testing.T) {
-		session, err := NewSession("bar", OptionDisablePrompt())
-		require.NoError(t, err)
-
-		h := NewHistory(session, entries)
+		h := NewHistory("bar", sinkWriter{}, entries)
 
 		buf := prompt.NewBuffer()
 		buf.InsertText("", false, true)
@@ -180,11 +167,8 @@ func TestHistoryOlder(t *testing.T) {
 	})
 
 	t.Run("BaseFooWithChanges", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
-		require.NoError(t, err)
-
 		h := NewHistory(
-			session, []*Entry{
+			"foo", sinkWriter{}, []*Entry{
 				{
 					Base:    "foo",
 					Cmd:     "a",
@@ -204,10 +188,7 @@ func TestHistoryOlder(t *testing.T) {
 
 func TestHistoryNewer(t *testing.T) {
 	t.Run("WrappedCommandFoo", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
-		require.NoError(t, err)
-
-		h := NewHistory(session, entries).(*history)
+		h := NewHistory("foo", sinkWriter{}, entries).(*history)
 		h.current = 0
 
 		buf := prompt.NewBuffer()
@@ -227,10 +208,7 @@ func TestHistoryNewer(t *testing.T) {
 	})
 
 	t.Run("WrappedCommandBar", func(t *testing.T) {
-		session, err := NewSession("bar", OptionDisablePrompt())
-		require.NoError(t, err)
-
-		h := NewHistory(session, entries).(*history)
+		h := NewHistory("bar", sinkWriter{}, entries).(*history)
 		h.current = 0
 
 		buf := prompt.NewBuffer()
@@ -251,9 +229,7 @@ func TestHistoryNewer(t *testing.T) {
 
 	t.Run("BaseFooWithChanges", func(t *testing.T) {
 		h := NewHistory(
-			&Session{
-				Base: "foo",
-			}, []*Entry{
+			"foo", sinkWriter{}, []*Entry{
 				{},
 				{
 					Base:    "foo",
@@ -274,10 +250,7 @@ func TestHistoryNewer(t *testing.T) {
 }
 
 func TestHistoryFullTraverse(t *testing.T) {
-	session, err := NewSession("foo", OptionDisablePrompt())
-	require.NoError(t, err)
-
-	history := NewHistory(session, []*Entry{
+	history := NewHistory("foo", sinkWriter{}, []*Entry{
 		{
 			Base:    "foo",
 			Cmd:     "a",

@@ -17,6 +17,7 @@ type Position struct {
 type Node interface {
 	// Returns the value of the node after expansion. If the node shuold be split accross multiple arguments (as for glob expansions), it will return multiple values.
 	Expand(environment) []string
+	Arg() string
 }
 
 type Word struct {
@@ -65,12 +66,20 @@ func (w *Word) Expand(environment) []string {
 	})
 }
 
+func (w *Word) Arg() string {
+	return w.Value
+}
+
 type SingleQuote struct {
 	Value string
 }
 
 func (q *SingleQuote) Expand(environment) []string {
 	return []string{q.Value}
+}
+
+func (q *SingleQuote) Arg() string {
+	return "'" + q.Value + "'"
 }
 
 type DoubleQuote struct {
@@ -86,12 +95,22 @@ func (q *DoubleQuote) Expand(env environment) []string {
 	}
 }
 
+func (q *DoubleQuote) Arg() string {
+	return "\"" + lo.Reduce(q.Nodes, func(acc string, node Node, _ int) string {
+		return acc + node.Arg()
+	}, "") + "\""
+}
+
 type VariableExpansion struct {
 	Name string
 }
 
 func (q *VariableExpansion) Expand(env environment) []string {
 	return []string{env(q.Name)}
+}
+
+func (q *VariableExpansion) Arg() string {
+	return "$" + q.Name
 }
 
 type Arg []Node
@@ -108,4 +127,12 @@ func (cmd Command) Expand(env environment) []string {
 	return lo.Flatten(lo.Map(cmd, func(arg Arg, _ int) []string {
 		return arg.Expand(env)
 	}))
+}
+
+func (cmd Command) Args() []string {
+	return lo.Map(cmd, func(arg Arg, _ int) string {
+		return lo.Reduce(arg, func(acc string, node Node, _ int) string {
+			return acc + node.Arg()
+		}, "")
+	})
 }
