@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"sort"
 	"strings"
 	"unicode"
 
@@ -270,10 +269,6 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 	default:
 		return []prompt.Suggest{}
 	}
-
-	sort.Slice(suggestions, func(i, j int) bool {
-		return suggestions[i].Text < suggestions[j].Text
-	})
 
 	return suggestions
 }

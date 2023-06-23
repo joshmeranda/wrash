@@ -15,7 +15,7 @@ var ExampleCommandSuggestion = &CommandSuggestion{
 	Flags: map[string]FlagSuggestion{
 		"--help": {
 			Description: "show help for example",
-			Opts: Arg{
+			Opt: Arg{
 				Kind: KindNone,
 			},
 		},
@@ -26,17 +26,26 @@ var ExampleCommandSuggestion = &CommandSuggestion{
 			Flags: map[string]FlagSuggestion{
 				"--foo": {
 					Description: "takes some value",
-					Opts: Arg{
+					Opt: Arg{
 						Kind:    KindDefault,
 						Choices: []string{"abc", "def"},
 					},
 				},
 				"--bar": {
 					Description: "takes a path value",
-					Opts: Arg{
+					Opt: Arg{
 						Kind: KindPath,
 					},
 				},
+				"--flag": {
+					Description: "takes no value",
+					Opt: Arg{
+						Kind: KindNone,
+					},
+				},
+			},
+			Opt: Arg{
+				Choices: []string{"first", "second", "third"},
 			},
 		},
 	},
@@ -78,12 +87,13 @@ func TestSuggest(t *testing.T) {
 			args: []string{"foo"},
 			expected: []prompt.Suggest{
 				{
-					Text:        "--bar",
-					Description: "takes a path value",
+					Text: "first",
 				},
 				{
-					Text:        "--foo",
-					Description: "takes some value",
+					Text: "second",
+				},
+				{
+					Text: "third",
 				},
 			},
 		},
@@ -111,10 +121,44 @@ func TestSuggest(t *testing.T) {
 			},
 		},
 		{
+			name: "FooWithFooAndArgs",
+			args: []string{"foo", "--foo", "abc"},
+			expected: []prompt.Suggest{
+				{
+					Text: "first",
+				},
+				{
+					Text: "second",
+				},
+				{
+					Text: "third",
+				},
+			},
+		},
+		{
+			name: "FooWithFooAndArgs",
+			args: []string{"foo", "--flag"},
+			expected: []prompt.Suggest{
+				{
+					Text: "first",
+				},
+				{
+					Text: "second",
+				},
+				{
+					Text: "third",
+				},
+			},
+		},
+		{
 			name:         "FooWithFooPrefix",
 			args:         []string{"foo", "--f"},
 			completeLast: true,
 			expected: []prompt.Suggest{
+				{
+					Text:        "--flag",
+					Description: "takes no value",
+				},
 				{
 					Text:        "--foo",
 					Description: "takes some value",
