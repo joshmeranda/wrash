@@ -15,7 +15,7 @@ var ExampleCommandSuggestion = &CommandSuggestion{
 	Flags: map[string]FlagSuggestion{
 		"--help": {
 			Description: "show help for example",
-			Opt: Arg{
+			Args: Arg{
 				Kind: KindNone,
 			},
 		},
@@ -26,25 +26,25 @@ var ExampleCommandSuggestion = &CommandSuggestion{
 			Flags: map[string]FlagSuggestion{
 				"--foo": {
 					Description: "takes some value",
-					Opt: Arg{
+					Args: Arg{
 						Kind:    KindDefault,
 						Choices: []string{"abc", "def"},
 					},
 				},
 				"--bar": {
 					Description: "takes a path value",
-					Opt: Arg{
+					Args: Arg{
 						Kind: KindPath,
 					},
 				},
 				"--flag": {
 					Description: "takes no value",
-					Opt: Arg{
+					Args: Arg{
 						Kind: KindNone,
 					},
 				},
 			},
-			Opt: Arg{
+			Args: Arg{
 				Choices: []string{"first", "second", "third"},
 			},
 		},

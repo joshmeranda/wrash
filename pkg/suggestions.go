@@ -95,7 +95,7 @@ func (o *Arg) ExpectsValue() bool {
 
 type FlagSuggestion struct {
 	Description string `yaml:"description"`
-	Opt         Arg    `yaml:"opt"`
+	Args        Arg    `yaml:"args"`
 }
 
 type CommandSuggestion struct {
@@ -104,7 +104,7 @@ type CommandSuggestion struct {
 
 	// Flags is only used to determine if a flag expects a value, or when the arg to be completed starts with a dash.
 	Flags map[string]FlagSuggestion `yaml:"flags"`
-	Opt   Arg                       `yaml:"opt"`
+	Args  Arg                       `yaml:"args"`
 }
 
 func (s *CommandSuggestion) Suggest(args []string, completeLast bool) []prompt.Suggest {
@@ -120,7 +120,7 @@ func (s *CommandSuggestion) Suggest(args []string, completeLast bool) []prompt.S
 		}
 
 		if flag, found := lastSubCmd.Flags[args[i]]; found {
-			if flag.Opt.ExpectsValue() {
+			if flag.Args.ExpectsValue() {
 				endFlag = &flag
 			}
 			continue
@@ -153,7 +153,7 @@ func (s *CommandSuggestion) Suggest(args []string, completeLast bool) []prompt.S
 			})
 		}
 	case endFlag != nil:
-		suggestions = endFlag.Opt.Suggest("")
+		suggestions = endFlag.Args.Suggest("")
 	case len(lastSubCmd.SubCommands) > 0:
 		suggestions = lo.MapToSlice(lastSubCmd.SubCommands, func(name string, subCmd CommandSuggestion) prompt.Suggest {
 			return prompt.Suggest{
@@ -162,7 +162,7 @@ func (s *CommandSuggestion) Suggest(args []string, completeLast bool) []prompt.S
 			}
 		})
 	default:
-		suggestions = lastSubCmd.Opt.Suggest("")
+		suggestions = lastSubCmd.Args.Suggest("")
 	}
 
 	sort.Slice(suggestions, func(i, j int) bool {
