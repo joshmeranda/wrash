@@ -3,6 +3,7 @@ package wrash
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -48,18 +49,26 @@ type Suggestor interface {
 type Arg struct {
 	Kind    ArgKind  `yaml:"kind"`
 	Choices []string `yaml:"choices"`
+	Cmd     []string `yaml:"cmd"`
 }
 
 func (o *Arg) Suggest(arg string) []prompt.Suggest {
-	if len(o.Choices) > 0 || o.Kind == KindValue {
-		return lo.FilterMap(o.Choices, func(choice string, _ int) (prompt.Suggest, bool) {
-			if strings.HasPrefix(choice, arg) {
-				return prompt.Suggest{
-					Text: choice,
-				}, true
-			}
+	if len(o.Cmd) > 0 {
+		out, err := exec.Command(o.Cmd[0], o.Cmd[1:]...).Output()
+		if err != nil {
+			return []prompt.Suggest{}
+		}
 
-			return prompt.Suggest{}, false
+		return lo.FilterMap(strings.Split(string(out), "\n"), func(text string, _ int) (prompt.Suggest, bool) {
+			return prompt.Suggest{
+				Text: text,
+			}, strings.HasPrefix(text, arg)
+		})
+	}
+
+	if len(o.Choices) > 0 {
+		return lo.FilterMap(o.Choices, func(choice string, _ int) (prompt.Suggest, bool) {
+			return prompt.Suggest{}, strings.HasPrefix(choice, arg)
 		})
 	}
 
@@ -85,7 +94,7 @@ func (o *Arg) Suggest(arg string) []prompt.Suggest {
 func (o *Arg) ExpectsValue() bool {
 	switch o.Kind {
 	case KindDefault:
-		return len(o.Choices) > 0
+		return len(o.Choices) > 0 || len(o.Cmd) > 0
 	case KindNone:
 		return false
 	default:
