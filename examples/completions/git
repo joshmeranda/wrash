@@ -1,0 +1,415 @@
+# An example wrash copmletion configuration for git. This is not comprehensive, but covers some of the most
+# commonly used flags and commands.
+description: "the stupid content tracker"
+flags:
+  --version:
+    description: "Prints the Git suite version that the git program came from"
+  --help:
+    description: "Prints the synopsis and a list of the most commonly used commands"
+subcommands:
+  add:
+    description: "Add file contents to the index"
+    args:
+      kind: path
+    flags:
+      --verbose:
+        description: "Be verbose"
+      --force:
+        description: "Allow adding otherwise ignored files"
+      --interactive:
+        description: "Add modified contents in the working tree interactively to the index"
+      --all:
+        description: "Update the index not only where the working tree has a file matching <pathspec> but also where the index already has an entry"
+      --no-warn-embedded-repo:
+        description: "By default, git add will warn when adding an embedded repository to the index without using git submodule add to create an entry in .gitmodules"
+
+  bisect:
+    description: "Use binary search to find the commit that introduced a bug"
+    subcommands:
+      start:
+        description: "Start the bisect"
+        args:
+          kind: value
+        flags:
+          --no-checkout:
+            description: " Do not checkout the new working tree at each iteration of the bisection process"
+          --first-parent:
+            description: "Follow only the first parent commit upon seeing a merge commit"
+      bad:
+        description: "Mark revisions as bad"
+        args:
+          kind: value
+      good:
+        description: "Mark revisions as good"
+        args:
+          kind: value
+      old:
+        description: "Mark revisions as older"
+        args:
+          kind: value
+      new:
+        description: "Mark revisions as newer"
+        args:
+          kind: value
+      terms:
+        description: "Get a reminder for curently used terms"
+        args:
+          kind: value
+      skip:
+        description: "Skip revision(s)"
+        args:
+          kind: value
+      reset:
+        description: "Clean up the bisection state and return to the original HEAD"
+        args:
+          kind: value
+      visualize:
+        description: "View the currently remaining suspects in gitk"
+      log:
+        description: "Show what has been done so far in the bisect"
+      replay:
+        description: "Replay the bisect using the output of git bisect log"
+      run:
+        description: "Bisec using custom commands to determine which revision is good/bad"
+        args:
+          kind: value
+
+  branch:
+    description: "List, create, or delete branches"
+    args:
+      cmd: ['git', 'branch', '--format', '%(refname:short)']
+    flags:
+      --delete:
+        description: "Delete a branch"
+      -D:
+        description: "Shortcut for --delete --force"
+      --force:
+        description: "Reset <branchname> to <start-point>, even if <branchname> exists already"
+      --move:
+        description: "Move/rename a branch"
+      -M:
+        desciption: "Shortcut for --move --force"
+      --remotes:
+        description: "List or delete (if used with -d) the remote-tracing-branches"
+      --all:
+        descrirption: "List both remote-tracking branches and local branches"
+      --list:
+        description: "List branches"
+      --verbose:
+        description: "Run verbosely"
+      --quiet:
+        description: "Be more quiet when creating or deleting a branch, suppressing non-error messages"
+      --set-upstream-to:
+        description: "Set up <branchname>'s tracking information so <upstream> is considered <branchname>'s upstream branch"
+      --merged:
+        description: "Only list branches which don't contain the specified commit"
+
+  commit:
+    description: "Record changes to the repository"
+    args:
+      kind: path
+    flags:
+      --all:
+        description: "Tell the command to automatically stage files that have been modified and deleted"
+      --long:
+        description: "When doing a dry-run, give the output in the long-format"
+      --author:
+        describe: "Override the commit author"
+        args:
+          kind: value
+      --date:
+        describe: "Override the author date used in the commi"
+      --message:
+        description: "Use the given <msg> as the commit message"
+      --no-verify:
+        descriptin: "Inverse of --verify"
+      --amend:
+        description: "Replace the tip of the current branch by creating a new commit"
+      --only:
+        description: "Make a commit by taking the updated working tree contents of the paths specified on the command line"
+      --verbose:
+        description: Run verbosely"
+      --quiet:
+        description: "Suppress commit summary message"
+      --dry-run:
+        description: "Do not create a commit, but show a list of paths that are to be committed"
+
+  clone:
+    description: "Clone a repository into a new directory"
+    # todo: provide better suport for multiple args and arg types
+    args:
+      kind: value
+    flags:
+      --quiet:
+        description: "Operate quietly"
+      --verbose:
+        description: "Run verbosely"
+      --progress:
+        description: "Progress status is reported on the standard error stream by default when it is attached to a terminal, unless -q is specified"
+      # todo:: support dir / file arg kinds
+      --single-branch:
+        description: "Clone only the history leading to the tip of a single branch"
+      # todo: support optional args
+
+  fetch:
+    description: "Download objects and refs from another repository"
+    flags:
+      --all:
+        description: "Fetch all remotes"
+      --prune:
+        description: "Before fetching, remove any remote-tracking references that no longer exist on the remote"
+      --prune-tags:
+        description: "Before fetching, remove any local tags that no longer exist on the remote"
+      --tags:
+        description: "Fetch all tags from the remote"
+
+  init: 
+    description: "Create an empty Git repository or reinitialize an existing one"
+    args:
+      kind: path
+    flags:
+      --quiet:
+        description: "Only print error and warning messages; all other output will be suppressed"
+      --bare:
+        description: "Create a bare repository"
+
+  log:
+    description: "Show commit logs"
+    args:
+      kind: value
+    flags:
+      --follow:
+        description: "Continue listing the history of a file beyond renames"
+      --no-decorate:
+        description: "Print out the ref names of any commits that are shown"
+      --decorate:
+        description: "Decorate the output"
+        args:
+          choices:
+          - short
+          - full
+          - auto
+          - no
+
+  merge:
+    description: "Join two or more development histories together"
+    args:
+      kind: value
+    flags:
+      --ff:
+        description: "When possible resolve the merge as a fast-forward"
+      --no-ff:
+        description: "Create a merge commit in all cases"
+      --ff-only:
+        description: "Only fast forward merge, if not possible exit with non-zero status code"
+      --squash:
+        description: "create a single commit on top of the current branch whose effect is the same as merging another branch"
+      --quiet:
+        desciption: "Operate quietly"
+      --verbose:
+        description: "Run verbosely"
+      --abort:
+        desciption: "Abort the current conflict resolution process, and try to reconstruct the pre-merge state"
+      --quit:
+        description: "Forget about the current merge in progress"
+      --continue:
+        description: "Conclude merge after resolving conflicts"
+
+  mv:
+    description: "Move or rename a file, a directory, or a symlink"
+    args:
+      kind: path
+    flags:
+      --force:
+        description: "Force renaming or moving of a file even if the <destination> exists"
+      -k:
+        description: "Skip move or rename actions which would lead to an error condition"
+      --dry-run:
+        description: "Do nothing; only show what would happen"
+      --verbose:
+        description: "Report the names of files as they are moved"
+
+  pull:
+    description: "Fetch from and integrate with another repository or a local branch"
+    flags:
+      --quiet:
+        description: "Operate quietly"
+      --verbose:
+        description: "Run verbosely"
+      
+      # merge flags
+      --ff:
+        description: "When possible resolve the merge as a fast-forward"
+      --no-ff:
+        description: "Create a merge commit in all cases"
+      --ff-only:
+        description: "Only fast forward merge, if not possible exit with non-zero status code"
+      --squash:
+        description: "create a single commit on top of the current branch whose effect is the same as merging another branch"
+
+      # fetch flags
+      --all:
+        description: "Fetch all remotes"
+      --prune:
+        description: "Before fetching, remove any remote-tracking references that no longer exist on the remote"
+      --prune-tags:
+        description: "Before fetching, remove any local tags that no longer exist on the remote"
+      --tags:
+        description: "Fetch all tags from the remote"
+
+  push:
+    description: "Update remote refs along with associated objects"
+    flags:
+      --all:
+        description: "Push all branches"
+      --prune:
+        description: "Remove remote branches that don't have a local counterpart"
+      --delete:
+        description: "All listed refs are deleted from the remote repository"
+      --tags:
+        description: "All refs under refs/tags are pushed"
+      --force:
+        description: "Force updates of remote refs"
+      --set-upstream:
+        description: "Add an upstream refspec if it doesn't exist"
+      --quiet:
+        description: "Operate quietly"
+      --verbose:
+        description: "Run verbosely"
+
+  rebase:
+    description: "Reapply commits on top of another base tip"
+    args:
+      kind: value
+    flags:
+      --quiet:
+        description: "Be quiet"
+      --verbose:
+        description: "Be verbose"
+      --interactive:
+        description: "Make a list of the commits which are about to be rebased, and let the user edit that list before rebasing"
+
+  reset:
+    description: Reset current HEAD to the specified state
+    args:
+      kind: value
+    flags:
+      --soft:
+        description: "Does not touch the index file or the working tree at all"
+      --mixed:
+        description: "Resets the index but not the working tree"
+      --hard:
+        description: "Resets the index and working tree"
+      --merge:
+        description: "Resets the index and updates the files in the working tree that are different between <commit> and HEAD"
+      --keep:
+        description: "Resets index entries and updates files in the working tree that are different between <commit> and HEAD"
+      --quiet:
+        description: "Quiet, suppress feedback messages"
+
+  restore:
+    description: "Restore working tree files"
+    args:
+      kind: path
+    flags:
+      --patch:
+        description: "Interactively select hunks in the difference between the restore source and the restore location"
+      --staged:
+        description: "Restore only staged files"
+      --worktree:
+        description: "Restore on the working tree"
+      --quiet:
+        description: "Quiet, suppress feedback messages"
+      --progress:
+        description: "Progress status is reported on the standard error stream by default when it is attached to a terminal"
+      --ours:
+        description: "When restoring files in the working tree from the index, use stage #2 (ours) for unmerged paths"
+      --theirs:
+        description: "When restoring files in the working tree from the index, use stage #3 (theirs) for unmerged paths"
+
+  rm:
+    description: "Remove files from the working tree and from the index"
+    args:
+      kind: path
+    flags:
+      --force:
+        description: "Override the up-to-date check"
+      --dry-run:
+        description: "Don't actually remove any file(s)"
+      -r:
+        description: "Allow recursive removal when a leading directory name is given"
+      --cached:
+        description: "Use this option to unstage and remove paths only from the index"
+      --ignore-unmatch:
+        description: "Exit with a zero status even if no files matched"
+      --sparse:
+        description: "Allow updating index entries outside of the sparse-checkout cone"
+      --quiet:
+        description: "Suppress output"
+
+  show:
+    description: "Show various types of objects"
+    args:
+      kind: value
+    flags:
+      --format:
+        description: "Pretty-print the contents of the commit logs in a given format"
+        args:
+          choices:
+          - oneline
+          - short
+          - medium
+          - full
+          - fuller
+          - reference
+          - email
+          - raw
+      --oneline:
+        description: "This is a shorthand for \"--pretty=oneline --abbrev-commit\" used together"
+      --show-signature:
+        description: "Check the validity of a signed commit object by passing the signature to gpg --verify and show the output"
+
+  status:
+    description: "Show the working tree status"
+    args:
+      kind: path
+    flags:
+      --long:
+        description: "Give the output in the long-format"
+      --verbose:
+        description: "Run verbosely"
+      --ignored:
+        desciption: "Show ignored files as well"
+        args:
+          choices:
+          - traditional
+          - no
+          - matching
+
+  switch:
+    description: "Switch branches"
+    args:
+      kind: value
+    flags:
+      --create:
+        description: "Create a new branch named <new_branch> and start it at <start_point>"
+      --detach:
+        description: "Switch to a commit for inspection and discardable experiment"
+      --quiet:
+        description: "Quiet, suppress feedback messages"
+      --track:
+        description: "When creating a new branch, set up \"upstream\" configuration"
+        args:
+          choices:
+          - direct
+          - inherit
+
+  tag:
+    description: "Create, list, delete or verify a tag object signed with GPG"
+    args:
+      kind: value
+    flags:
+      --delete:
+        description: "Delete existing tags with the given names"
+      --list:
+        description: "List tags"
