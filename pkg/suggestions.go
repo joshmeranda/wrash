@@ -68,7 +68,9 @@ func (o *Arg) Suggest(arg string) []prompt.Suggest {
 
 	if len(o.Choices) > 0 {
 		return lo.FilterMap(o.Choices, func(choice string, _ int) (prompt.Suggest, bool) {
-			return prompt.Suggest{}, strings.HasPrefix(choice, arg)
+			return prompt.Suggest{
+				Text: choice,
+			}, strings.HasPrefix(choice, arg)
 		})
 	}
 
