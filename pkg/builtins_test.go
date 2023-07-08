@@ -142,7 +142,7 @@ func TestHistory(t *testing.T) {
 
 	t.Run("NoPattern", func(t *testing.T) {
 		out := strings.Builder{}
-		session.stdout = &strings.Builder{}
+		session.stdout = &out
 
 		expected := "bar\nbaz\nbaz\n"
 
@@ -152,7 +152,7 @@ func TestHistory(t *testing.T) {
 
 	t.Run("WithPattern", func(t *testing.T) {
 		out := strings.Builder{}
-		session.stdout = &strings.Builder{}
+		session.stdout = &out
 
 		expected := "bar\n"
 
@@ -162,7 +162,7 @@ func TestHistory(t *testing.T) {
 
 	t.Run("Show", func(t *testing.T) {
 		out := strings.Builder{}
-		session.stdout = &strings.Builder{}
+		session.stdout = &out
 
 		expected := "foo bar\nfoo baz\nfoo baz\n"
 
