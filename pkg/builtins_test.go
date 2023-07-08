@@ -24,7 +24,7 @@ func TestCd(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Chdir(startDir)
 
-	session, err := NewSession("foo", OptionDisablePrompt())
+	session, err := NewSession("foo", OptionInteractive(false))
 	require.NoError(t, err)
 
 	target, err := filepath.Abs("../tests")
@@ -73,7 +73,7 @@ func TestCd(t *testing.T) {
 
 func TestExit(t *testing.T) {
 	t.Run("NoCodeGiven", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
+		session, err := NewSession("foo", OptionInteractive(false))
 		require.NoError(t, err)
 
 		require.NoError(t, session.apps["exit"].Run([]string{"!!exit"}))
@@ -82,7 +82,7 @@ func TestExit(t *testing.T) {
 	})
 
 	t.Run("CodeGiven", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
+		session, err := NewSession("foo", OptionInteractive(false))
 		require.NoError(t, err)
 
 		require.NoError(t, session.apps["exit"].Run([]string{"!!exit", "5"}))
@@ -91,7 +91,7 @@ func TestExit(t *testing.T) {
 	})
 
 	t.Run("InvalidCodeGiven", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
+		session, err := NewSession("foo", OptionInteractive(false))
 		require.NoError(t, err)
 
 		require.Error(t, session.apps["exit"].Run([]string{"!!exit", "bad"}))
@@ -99,7 +99,7 @@ func TestExit(t *testing.T) {
 	})
 
 	t.Run("ToomanyArgs", func(t *testing.T) {
-		session, err := NewSession("foo", OptionDisablePrompt())
+		session, err := NewSession("foo", OptionInteractive(false))
 		require.NoError(t, err)
 
 		require.Error(t, session.apps["exit"].Run([]string{"!!exit", "1", "2"}))
@@ -109,7 +109,7 @@ func TestExit(t *testing.T) {
 
 func TestHelp(t *testing.T) {
 	out := strings.Builder{}
-	session, err := NewSession("foo", OptionDisablePrompt(), OptionStdout(&out))
+	session, err := NewSession("foo", OptionInteractive(false), OptionStdout(&out))
 	require.NoError(t, err)
 
 	require.NoError(t, session.apps["help"].Run([]string{"!!help"}))
@@ -118,7 +118,7 @@ func TestHelp(t *testing.T) {
 
 func TestHistory(t *testing.T) {
 	session, err := NewSession("foo",
-		OptionDisablePrompt(),
+		OptionInteractive(false),
 		OptionHistory(NewHistory("foo", sinkWriter{}, []*Entry{
 			{
 				Base: "foo",
@@ -183,7 +183,7 @@ func TestHistory(t *testing.T) {
 
 func TestExport(t *testing.T) {
 	session, err := NewSession("foo",
-		OptionDisablePrompt(),
+		OptionInteractive(false),
 	)
 	require.NoError(t, err)
 

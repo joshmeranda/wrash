@@ -71,8 +71,8 @@ type Session struct {
 	stderr io.Writer
 	stdin  io.Reader
 
-	prompt        *prompt.Prompt
-	disablePrompt bool // useful for disable tty requirement for testing
+	prompt      *prompt.Prompt
+	interactive bool // useful for disable tty requirement for testing
 
 	environ map[string]string
 
@@ -89,6 +89,8 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 		Base: base,
 
 		environ: make(map[string]string),
+
+		interactive: true,
 
 		stdout: os.Stdout,
 		stderr: os.Stderr,
@@ -107,8 +109,7 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 
 	session.initBuiltins()
 
-	if !session.disablePrompt {
-		// todo: OptionLivePrefix
+	if session.interactive {
 		session.prompt = prompt.New(session.executor, session.completer,
 			prompt.OptionTitle("wrash"+base),
 			prompt.OptionPrefix(base+" >"),

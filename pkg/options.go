@@ -54,9 +54,9 @@ func OptionStdin(r io.Reader) Option {
 }
 
 // todo: rename -> interactive
-func OptionDisablePrompt() Option {
+func OptionInteractive(interactive bool) Option {
 	return func(s *Session) error {
-		s.disablePrompt = true
+		s.interactive = interactive
 		return nil
 	}
 }
