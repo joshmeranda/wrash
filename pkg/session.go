@@ -74,6 +74,8 @@ type Session struct {
 	prompt        *prompt.Prompt
 	disablePrompt bool // useful for disable tty requirement for testing
 
+	environ map[string]string
+
 	history          *history
 	exitCalled       bool
 	previousExitCode int
@@ -85,6 +87,8 @@ type Session struct {
 func NewSession(base string, opts ...Option) (*Session, error) {
 	session := &Session{
 		Base: base,
+
+		environ: make(map[string]string),
 
 		stdout: os.Stdout,
 		stderr: os.Stderr,
@@ -101,7 +105,7 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 		session.history = NewHistory(base, sinkWriter{}, make([]*Entry, 0)).(*history)
 	}
 
-	session.initApps()
+	session.initBuiltins()
 
 	if !session.disablePrompt {
 		// todo: OptionLivePrefix
@@ -129,67 +133,6 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 	return session, nil
 }
 
-func (s *Session) initApps() {
-	s.apps = make(map[string]*cli.App)
-
-	s.apps["cd"] = &cli.App{
-		Name:        "cd",
-		Usage:       "cd [TARGET]",
-		Description: "change the working directory of the shell",
-		Flags:       []cli.Flag{},
-		Action:      s.doCd,
-
-		Reader:    s.stdin,
-		Writer:    s.stdout,
-		ErrWriter: s.stderr,
-	}
-
-	s.apps["exit"] = &cli.App{
-		Name:        "exit",
-		Usage:       "exit [CODE]",
-		Description: "exit the shell",
-		Action:      s.doExit,
-
-		Reader:    s.stdin,
-		Writer:    s.stdout,
-		ErrWriter: s.stderr,
-	}
-
-	s.apps["help"] = &cli.App{
-		Name:        "help",
-		Usage:       "help",
-		Description: "view help text",
-		Action:      s.doHelp,
-
-		Reader:    s.stdin,
-		Writer:    s.stdout,
-		ErrWriter: s.stderr,
-	}
-
-	s.apps["history"] = &cli.App{
-		Name:        "histroy",
-		Usage:       "history [pattern]",
-		Description: "view the history of the shell (pattern should not inclue the base command)",
-		Action:      s.doHistory,
-		Flags: []cli.Flag{
-			&cli.IntFlag{
-				Name:    "number",
-				Aliases: []string{"n"},
-				Usage:   "limit shown history entries to N (if N is 0, all entries will be shown)",
-			},
-			&cli.BoolFlag{
-				Name:    "show",
-				Aliases: []string{"s"},
-				Usage:   "include the base command in the output",
-			},
-		},
-
-		Reader:    s.stdin,
-		Writer:    s.stdout,
-		ErrWriter: s.stderr,
-	}
-}
-
 func (s *Session) executor(str string) {
 	defer s.history.Clear()
 
@@ -204,7 +147,9 @@ func (s *Session) executor(str string) {
 	}
 
 	args := []string{s.Base}
-	args = append(args, cmd.Expand(os.Getenv)...)
+	args = append(args, cmd.Expand(func(key string) string {
+		return s.environ[key]
+	})...)
 
 	s.previousExitCode = 0
 

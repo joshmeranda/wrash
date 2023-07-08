@@ -65,7 +65,11 @@ func run(ctx *cli.Context) error {
 		suggestor = &wrash.EmptySuggestor{}
 	}
 
-	session, err := wrash.NewSession(base, wrash.OptionHistory(history), wrash.OptionSuggestor(suggestor))
+	session, err := wrash.NewSession(base,
+		wrash.OptionHistory(history),
+		wrash.OptionSuggestor(suggestor),
+		wrash.OptionInheritEnvironment(),
+	)
 	if err != nil {
 		return err
 	}

@@ -11,8 +11,98 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// todo: we only need to speciy each builtin's cli.Apps in, out, and err, or use the Sessions in, out, or err not both
+
 func isBuiltin(s string) bool {
 	return strings.HasPrefix(s, "!!")
+}
+
+func (s *Session) initBuiltins() {
+	s.apps = make(map[string]*cli.App)
+
+	s.apps["cd"] = &cli.App{
+		Name:        "cd",
+		Usage:       "cd [TARGET]",
+		Description: "change the working directory of the shell",
+		Flags:       []cli.Flag{},
+		Action:      s.doCd,
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
+	}
+
+	s.apps["exit"] = &cli.App{
+		Name:        "exit",
+		Usage:       "exit [CODE]",
+		Description: "exit the shell",
+		Action:      s.doExit,
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
+	}
+
+	s.apps["help"] = &cli.App{
+		Name:        "help",
+		Usage:       "help",
+		Description: "view help text",
+		Action:      s.doHelp,
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
+	}
+
+	s.apps["history"] = &cli.App{
+		Name:        "histroy",
+		Usage:       "history [pattern]",
+		Description: "view the history of the shell (pattern should not inclue the base command)",
+		Action:      s.doHistory,
+		Flags: []cli.Flag{
+			&cli.IntFlag{
+				Name:    "number",
+				Aliases: []string{"n"},
+				Usage:   "limit shown history entries to N (if N is 0, all entries will be shown)",
+			},
+			&cli.BoolFlag{
+				Name:    "show",
+				Aliases: []string{"s"},
+				Usage:   "include the base command in the output",
+			},
+		},
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
+	}
+
+	s.apps["export"] = &cli.App{
+		Name:        "export",
+		Usage:       "export",
+		Description: "set or display environment variables for the current session",
+		Action:      s.doExport,
+		Commands: []*cli.Command{
+			{
+				Name:        "set",
+				Usage:       "export set [KEY=[VALUE]]...",
+				Description: "set environment variables for the current session",
+				Action:      s.doExport,
+			},
+			{
+				Name:        "show",
+				Usage:       "export show",
+				Description: "show environment variables for the current session",
+				Action:      s.doExport,
+			},
+		},
+
+		DefaultCommand: "set",
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
+	}
 }
 
 func (s *Session) doCd(ctx *cli.Context) error {
@@ -121,6 +211,34 @@ func (s *Session) doHistory(ctx *cli.Context) error {
 	}
 
 	fmt.Fprintln(s.stdout, strings.Join(matched, "\n"))
+
+	return nil
+}
+
+func (s *Session) doExport(ctx *cli.Context) error {
+	if ctx.Command.Name == "show" {
+		for key, value := range s.environ {
+			fmt.Fprintf(s.stdout, "%s='%s'\n", key, value)
+		}
+
+		return nil
+	}
+
+	// parse and validate strings
+	exported := make(map[string]string, ctx.Args().Len())
+	for _, arg := range ctx.Args().Slice() {
+		key, value, err := splitEnviron(arg)
+		if err != nil {
+			return fmt.Errorf("invalid environment pair: %s", err)
+		}
+
+		exported[key] = value
+	}
+
+	// actually export the values
+	for key, value := range exported {
+		s.environ[key] = value
+	}
 
 	return nil
 }

@@ -142,7 +142,7 @@ func TestHistory(t *testing.T) {
 
 	t.Run("NoPattern", func(t *testing.T) {
 		out := strings.Builder{}
-		session.stdout = &out
+		session.stdout = &strings.Builder{}
 
 		expected := "bar\nbaz\nbaz\n"
 
@@ -152,7 +152,7 @@ func TestHistory(t *testing.T) {
 
 	t.Run("WithPattern", func(t *testing.T) {
 		out := strings.Builder{}
-		session.stdout = &out
+		session.stdout = &strings.Builder{}
 
 		expected := "bar\n"
 
@@ -162,7 +162,7 @@ func TestHistory(t *testing.T) {
 
 	t.Run("Show", func(t *testing.T) {
 		out := strings.Builder{}
-		session.stdout = &out
+		session.stdout = &strings.Builder{}
 
 		expected := "foo bar\nfoo baz\nfoo baz\n"
 
@@ -177,6 +177,36 @@ func TestHistory(t *testing.T) {
 		expected := "baz\nbaz\n"
 
 		require.NoError(t, session.apps["history"].Run([]string{"!!history", "--number", "2"}))
+		require.Equal(t, expected, out.String())
+	})
+}
+
+func TestExport(t *testing.T) {
+	session, err := NewSession("foo",
+		OptionDisablePrompt(),
+	)
+	require.NoError(t, err)
+
+	t.Run("Ok", func(t *testing.T) {
+		require.NoError(t, session.apps["export"].Run([]string{"!!export", "set", "foo=bar"}))
+		assert.Equal(t, "bar", session.environ["foo"])
+	})
+
+	t.Run("BadArgs", func(t *testing.T) {
+		session.environ = make(map[string]string)
+		require.Error(t, session.apps["export"].Run([]string{"!!export", "foo=bar", "=baz"}))
+		assert.Empty(t, session.environ["foo"])
+	})
+
+	t.Run("Show", func(t *testing.T) {
+		out := strings.Builder{}
+		session.stdout = &out
+
+		session.environ["foo"] = "bar"
+		session.environ["baz"] = ""
+
+		expected := "foo='bar'\nbaz=''\n"
+		require.NoError(t, session.apps["export"].Run([]string{"!!export", "show"}))
 		require.Equal(t, expected, out.String())
 	})
 }
