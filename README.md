@@ -20,17 +20,30 @@ You can run:
 >>> push
 ```
 
-## Instalattion
-Wrash v0.1 is now available on the [Arch User Repository](https://aur.archlinux.org/packages/wrash-git) (AUR).
+## Installation
 
-Or clone, build, and install with [Cargo](https://doc.rust-lang.org/cargo/).
+### >= v0.3.0
 
-## Testing
-Most tests can be run with the typical `cargo test`, but some require that we mutate the current working directory,
-and therefore might cause false-negatives in other tests that access files with relatives paths. To mitigate this, all
-of these tests are `#[ignored]` in most situations; however, they can be run with
-`cargo test -- --test-threads 1 --ignored` whenever necessary or run everything at once with
-`cargo test -- --test-threads 1 --include-ignored`.
+`go install github.com/joshmeranda/wrash@<version>`
 
-Many of those same tests use relative paths when setting the working directory, meaning that if tests are not run from
-the project root, they are likely to fail.
+### < v0.3.0
+
+Wrash available on the [Arch User Repository](https://aur.archlinux.org/packages/wrash-git) (AUR).
+
+For version `v0.2.0` we ported this project from [Rust](https://doc.rust-lang.org/) to [Golang](https://go.dev/), so the manual build / install process is differnt for those versions.
+
+#### Rust
+
+```
+cargo install --path .
+```
+
+#### Golang
+
+```
+make wrash
+ln -s $(realpath bin/wrash) /usr/bin
+```
+
+### < v0.2.0
+Clone, build, and install with [Cargo](https://doc.rust-lang.org/cargo/).
