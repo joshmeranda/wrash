@@ -53,7 +53,6 @@ func OptionStdin(r io.Reader) Option {
 	}
 }
 
-// todo: rename -> interactive
 func OptionInteractive(interactive bool) Option {
 	return func(s *Session) error {
 		s.interactive = interactive

@@ -11,8 +11,6 @@ const (
 	EnvHistoryFile   = "WRASH_HISTORY_FILE"
 )
 
-// todo: add enviornment variables for this
-
 func GetHistoryFile() (string, error) {
 	if path := os.Getenv(EnvHistoryFile); path != "" {
 		return path, nil
