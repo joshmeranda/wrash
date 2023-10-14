@@ -48,7 +48,7 @@ func goNextBoundary(buff *prompt.Buffer) {
 func goPreviousBoundary(buff *prompt.Buffer) {
 	startPosition := buff.DisplayCursorPosition()
 
-	// todo: creatinga new reversed string like this is pretty expensive, we probblay want to update getNextBoundary to support a reverse mode
+	// todo: creating a new reversed string like this is pretty expensive, we probably want to update getNextBoundary to support a reverse mode
 	// reverse text
 	text := string(lo.Reverse([]rune(buff.Text())))
 

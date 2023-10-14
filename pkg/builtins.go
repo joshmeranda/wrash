@@ -11,7 +11,7 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-// todo: we only need to speciy each builtin's cli.Apps in, out, and err, or use the Sessions in, out, or err not both
+// todo: we only need to specify each builtin's cli.Apps in, out, and err, or use the Sessions in, out, or err not both
 
 func isBuiltin(s string) bool {
 	return strings.HasPrefix(s, "!!")
