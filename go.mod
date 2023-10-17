@@ -1,6 +1,6 @@
 module github.com/joshmeranda/wrash
 
-go 1.20
+go 1.21
 
 require (
 	github.com/joshmeranda/go-prompt v0.3.0
