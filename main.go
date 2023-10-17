@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 
 	wrash "github.com/joshmeranda/wrash/pkg"
@@ -35,6 +36,10 @@ func run(ctx *cli.Context) error {
 	base := strings.Join(ctx.Args().Slice(), " ")
 	if base == "" {
 		return fmt.Errorf("no command provided")
+	}
+
+	if _, err := exec.LookPath(base); err != nil {
+		return fmt.Errorf("command not found: %s", base)
 	}
 
 	historyPath, err := GetHistoryFile()
