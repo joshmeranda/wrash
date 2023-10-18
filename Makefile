@@ -45,7 +45,7 @@ build: wrash
 wrash: bin/wrash
 
 bin/wrash: ${SOURCES}
-	${GO_BUILD} -ldflags "-X wrash/pkg/cmd.Version=${TAG}" -o $@ ./pkg/cmd/wrash
+	${GO_BUILD} -ldflags "-X main.Version=${TAG}" -o $@ .
 
 # # # # # # # # # # # # # # # # # # # #
 # Test recipes                        #
