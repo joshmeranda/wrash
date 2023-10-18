@@ -25,13 +25,6 @@ func OptionHistory(h prompt.History) Option {
 	}
 }
 
-func OptionSuggestor(suggestion Suggestor) Option {
-	return func(s *Session) error {
-		s.suggestor = suggestion
-		return nil
-	}
-}
-
 func OptionStdout(w io.Writer) Option {
 	return func(s *Session) error {
 		s.stdout = w
