@@ -19,9 +19,10 @@ func testEnv(name string) string {
 
 func TestNodeExpand(t *testing.T) {
 	type testCase struct {
-		Name string
-		Node Node
-		Out  []string
+		Name       string
+		Node       Node
+		Out        []string
+		ExpectsErr bool
 	}
 
 	cases := []testCase{
@@ -93,11 +94,25 @@ func TestNodeExpand(t *testing.T) {
 			},
 			Out: []string{"*"},
 		},
+
+		// failing expansions
+		{
+			Name: "UnterminatedBraceExpansion",
+			Node: &Word{
+				Value: "abcdefg[]",
+			},
+			Out:        nil,
+			ExpectsErr: true,
+		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.Name, func(t *testing.T) {
-			assert.Equal(t, tc.Out, tc.Node.Expand(testEnv))
+			actual, err := tc.Node.Expand(testEnv)
+			if !tc.ExpectsErr {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.Out, actual)
 		})
 	}
 }
