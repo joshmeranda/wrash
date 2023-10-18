@@ -3,6 +3,7 @@ package args
 import (
 	"testing"
 
+	"github.com/r3labs/diff/v3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -48,7 +49,8 @@ func TestParse(t *testing.T) {
 									Name: "SOME_VAR",
 								},
 								&Word{
-									Value: "  d\"e\"f",
+									Value:    "  d\"e\"f",
+									IsQuoted: true,
 								},
 							},
 						},
@@ -101,8 +103,11 @@ func TestParse(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
 			cmd, err := Parse(tc.Input)
-			assert.Equal(t, tc.Result.Cmd, cmd)
 			assert.Equal(t, tc.Result.Err, err)
+
+			changelog, err := diff.Diff(tc.Result.Cmd, cmd)
+			assert.NoError(t, err)
+			assert.Empty(t, changelog)
 		})
 	}
 }
