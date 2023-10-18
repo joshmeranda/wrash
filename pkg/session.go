@@ -142,14 +142,19 @@ func (s *Session) executor(str string) {
 
 	cmd, err := args.Parse(str)
 	if err != nil {
-		fmt.Fprintf(s.stderr, "could not parse args: %s", err)
+		fmt.Fprintf(s.stderr, "could not parse args: %s\n", err)
 		return
 	}
 
 	args := []string{s.Base}
-	args = append(args, cmd.Expand(func(key string) string {
+	expanded, err := cmd.Expand(func(key string) string {
 		return s.environ[key]
-	})...)
+	})
+	if err != nil {
+		fmt.Fprintf(s.stderr, "could not expand args: %s\n", err)
+		return
+	}
+	args = append(args, expanded...)
 
 	s.previousExitCode = 0
 

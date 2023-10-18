@@ -1,6 +1,7 @@
 package args
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -16,7 +17,7 @@ type Position struct {
 
 type Node interface {
 	// Returns the value of the node after expansion. If the node shuold be split accross multiple arguments (as for glob expansions), it will return multiple values.
-	Expand(environment) []string
+	Expand(environment) ([]string, error)
 	Arg() string
 }
 
@@ -42,18 +43,18 @@ func (w *Word) stripEscappedWildcards() (stripped string, foundUnescapped bool) 
 	return
 }
 
-func (w *Word) Expand(environment) []string {
+func (w *Word) Expand(environment) ([]string, error) {
 	if w.IsQuoted {
-		return []string{w.Value}
+		return []string{w.Value}, nil
 	}
 
 	if stripped, found := w.stripEscappedWildcards(); !found {
-		return []string{stripped}
+		return []string{stripped}, nil
 	}
 
 	paths, err := filepath.Glob(w.Value)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("failed to expand glob: %w", err)
 	}
 
 	// todo: do something when there are no matches
@@ -63,7 +64,7 @@ func (w *Word) Expand(environment) []string {
 		} else {
 			return path
 		}
-	})
+	}), nil
 }
 
 func (w *Word) Arg() string {
@@ -74,8 +75,8 @@ type SingleQuote struct {
 	Value string
 }
 
-func (q *SingleQuote) Expand(environment) []string {
-	return []string{q.Value}
+func (q *SingleQuote) Expand(environment) ([]string, error) {
+	return []string{q.Value}, nil
 }
 
 func (q *SingleQuote) Arg() string {
@@ -86,13 +87,17 @@ type DoubleQuote struct {
 	Nodes []Node
 }
 
-func (q *DoubleQuote) Expand(env environment) []string {
-	return []string{
-		lo.Reduce(q.Nodes, func(acc string, node Node, _ int) string {
-			// double quoted globs should not expanded, and should always have at least 1 element
-			return acc + node.Expand(env)[0]
-		}, ""),
+func (q *DoubleQuote) Expand(env environment) ([]string, error) {
+	var acc string
+	for _, node := range q.Nodes {
+		expanded, err := node.Expand(env)
+		if err != nil {
+			return nil, err
+		}
+		acc += expanded[0]
 	}
+
+	return []string{acc}, nil
 }
 
 func (q *DoubleQuote) Arg() string {
@@ -105,8 +110,8 @@ type VariableExpansion struct {
 	Name string
 }
 
-func (q *VariableExpansion) Expand(env environment) []string {
-	return []string{env(q.Name)}
+func (q *VariableExpansion) Expand(env environment) ([]string, error) {
+	return []string{env(q.Name)}, nil
 }
 
 func (q *VariableExpansion) Arg() string {
@@ -115,18 +120,38 @@ func (q *VariableExpansion) Arg() string {
 
 type Arg []Node
 
-func (arg Arg) Expand(env environment) []string {
-	return lo.Flatten(lo.Map(arg, func(node Node, _ int) []string {
-		return node.Expand(env)
-	}))
+func (arg Arg) Expand(env environment) ([]string, error) {
+	var err error
+
+	result := lo.FlatMap(arg, func(node Node, _ int) []string {
+		var expanded []string
+		expanded, err = node.Expand(env)
+		return expanded
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, err
 }
 
 type Command []Arg
 
-func (cmd Command) Expand(env environment) []string {
-	return lo.Flatten(lo.Map(cmd, func(arg Arg, _ int) []string {
-		return arg.Expand(env)
-	}))
+func (cmd Command) Expand(env environment) ([]string, error) {
+	var err error
+
+	result := lo.FlatMap(cmd, func(arg Arg, _ int) []string {
+		var expanded []string
+		expanded, err = arg.Expand(env)
+		return expanded
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, err
 }
 
 func (cmd Command) Args() []string {
