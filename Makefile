@@ -51,7 +51,8 @@ bin/wrash: ${SOURCES}
 # Test recipes                        #
 # # # # # # # # # # # # # # # # # # # #
 
-TEST_PKGS=./pkg 
+# TEST_PKGS=./pkg 
+TEST_PKGS=$(shell find . -name '*_test.go' -exec dirname '{}' + | sort | uniq)
 
 test:
 	${GO_TEST} ${TEST_PKGS}
