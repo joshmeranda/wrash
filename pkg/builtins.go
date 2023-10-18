@@ -162,7 +162,7 @@ WraSh is designed to provide a very minimal interactive wrapper shell around a
 base command. For example if the base command was 'git', you could call
 'add -A' rather then 'git add -A'.
 
-Below is a list of supported builtins, pass '--help' to any o them for more information:`
+Below is a list of supported builtins, pass '--help' to any of them for more information:`
 
 	maxLen := lo.Max(lo.Map(lo.Keys(s.apps), func(s string, _ int) int {
 		return len(s)

@@ -7,8 +7,7 @@ import (
 )
 
 const (
-	EnvCompletionDir = "WRASH_COMPLETION_DIR"
-	EnvHistoryFile   = "WRASH_HISTORY_FILE"
+	EnvHistoryFile = "WRASH_HISTORY_FILE"
 )
 
 func GetHistoryFile() (string, error) {
@@ -22,26 +21,4 @@ func GetHistoryFile() (string, error) {
 	}
 
 	return path.Join(dir, ".wrash_history.yaml"), nil
-}
-
-func getCompletionDir() (string, error) {
-	if path := os.Getenv(EnvCompletionDir); path != "" {
-		return path, nil
-	}
-
-	dir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("could not determine user home directory: %w", err)
-	}
-
-	return path.Join(dir, ".wrash_completion.yaml"), nil
-}
-
-func GetCompletionFile(base string) (string, error) {
-	dir, err := getCompletionDir()
-	if err != nil {
-		return "", err
-	}
-
-	return path.Join(dir, base), nil
 }

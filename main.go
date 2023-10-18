@@ -60,19 +60,8 @@ func run(ctx *cli.Context) error {
 
 	history := wrash.NewHistory(base, historyWriter, entries)
 
-	completionPath, err := GetCompletionFile(base)
-	if err != nil {
-		return err
-	}
-
-	suggestor, err := wrash.LoadSuggestions(completionPath)
-	if err != nil {
-		suggestor = &wrash.EmptySuggestor{}
-	}
-
 	session, err := wrash.NewSession(base,
 		wrash.OptionHistory(history),
-		wrash.OptionSuggestor(suggestor),
 		wrash.OptionInheritEnvironment(),
 	)
 	if err != nil {

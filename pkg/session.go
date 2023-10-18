@@ -81,7 +81,6 @@ type Session struct {
 	previousExitCode int
 	apps             map[string]*cli.App
 	isFrozen         bool
-	suggestor        Suggestor
 }
 
 func NewSession(base string, opts ...Option) (*Session, error) {
@@ -204,16 +203,8 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 		}), func(s prompt.Suggest, _ int) bool {
 			return strings.HasPrefix(s.Text, doc.TextBeforeCursor())
 		})
-	case s.suggestor != nil:
-		command, err := args.Parse(doc.TextBeforeCursor())
-		if err != nil {
-			return []prompt.Suggest{}
-		}
-		args := command.Args()
-		completeLast := doc.GetWordBeforeCursor()+doc.GetWordAfterCursor() != ""
-		suggestions = s.suggestor.Suggest(args, completeLast)
 	default:
-		return []prompt.Suggest{}
+		suggestions = fileCompleter(doc)
 	}
 
 	return suggestions
