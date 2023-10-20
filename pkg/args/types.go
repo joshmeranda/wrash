@@ -57,6 +57,10 @@ func (w *Word) Expand(environment) ([]string, error) {
 		return nil, fmt.Errorf("failed to expand glob: %w", err)
 	}
 
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("word expanded to empty value")
+	}
+
 	// todo: do something when there are no matches
 	return lo.Map(paths, func(path string, _ int) string {
 		if strings.Contains(path, " ") {

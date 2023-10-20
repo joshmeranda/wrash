@@ -48,6 +48,13 @@ func TestNodeExpand(t *testing.T) {
 			},
 			Out: []string{path.Join(testDir, "a*_file")},
 		},
+		{
+			Name: "WordWithWildcardNoMatches",
+			Node: &Word{
+				Value: "no_*_matches",
+			},
+			ExpectsErr: true,
+		},
 
 		// variable expansion
 		{
