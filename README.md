@@ -21,11 +21,21 @@ You can run:
 ```
 ## Installation
 
-## Installation
+### >= v0.4.0
+
+The simplest method is to run `make install`. This leverages `go install` to do the installtion for us so make sure your path is configured properlly to point to your `$GOROOT/bin` dir.
+
+Otherwise you can follow the same instructions for `>= v0.3.0`
 
 ### >= v0.3.0
 
-`go install github.com/joshmeranda/wrash@<version>`
+The simplest way is to install vi `go` with the command below:
+
+```
+go install github.com/joshmeranda/wrash@<version>
+```
+
+NOTE: because the version is injected at build tikme if you want to check what version you have installed via `wrash --version` you will need to pass the `ldflags "-X main.Version=<version>` flag as well (replacing `<version>` with the desired version). Thi is fixed in `v0.4.0`
 
 ### < v0.3.0
 
