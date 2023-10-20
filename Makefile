@@ -15,10 +15,10 @@ TAG:=$(shell git tag --contains HEAD)
 
 ifeq (${TAG},)
 $(info no tag found for HEAD)
-TAG:="$(shell git tag --sort version:refname --list | tail --lines 1)-$(shell git rev-parse HEAD)"
+TAG:=$(shell git tag --sort version:refname --list | tail --lines 1)-$(shell git rev-parse HEAD)
 endif
 
-ifneq ("$(shell git status --porcelain)",)
+ifneq ($(shell git status --porcelain),)
 $(info HEAD is dirty)
 TAG:=${TAG}-dirty
 endif
