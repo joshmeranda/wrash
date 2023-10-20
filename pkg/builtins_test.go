@@ -24,7 +24,7 @@ func TestCd(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Chdir(startDir)
 
-	session, err := NewSession("foo", OptionInteractive(false))
+	session, err := NewSession([]string{"foo"}, OptionInteractive(false))
 	require.NoError(t, err)
 
 	target, err := filepath.Abs("../tests")
@@ -73,7 +73,7 @@ func TestCd(t *testing.T) {
 
 func TestExit(t *testing.T) {
 	t.Run("NoCodeGiven", func(t *testing.T) {
-		session, err := NewSession("foo", OptionInteractive(false))
+		session, err := NewSession([]string{"foo"}, OptionInteractive(false))
 		require.NoError(t, err)
 
 		require.NoError(t, session.apps["exit"].Run([]string{"!!exit"}))
@@ -82,7 +82,7 @@ func TestExit(t *testing.T) {
 	})
 
 	t.Run("CodeGiven", func(t *testing.T) {
-		session, err := NewSession("foo", OptionInteractive(false))
+		session, err := NewSession([]string{"foo"}, OptionInteractive(false))
 		require.NoError(t, err)
 
 		require.NoError(t, session.apps["exit"].Run([]string{"!!exit", "5"}))
@@ -91,7 +91,7 @@ func TestExit(t *testing.T) {
 	})
 
 	t.Run("InvalidCodeGiven", func(t *testing.T) {
-		session, err := NewSession("foo", OptionInteractive(false))
+		session, err := NewSession([]string{"foo"}, OptionInteractive(false))
 		require.NoError(t, err)
 
 		require.Error(t, session.apps["exit"].Run([]string{"!!exit", "bad"}))
@@ -99,7 +99,7 @@ func TestExit(t *testing.T) {
 	})
 
 	t.Run("ToomanyArgs", func(t *testing.T) {
-		session, err := NewSession("foo", OptionInteractive(false))
+		session, err := NewSession([]string{"foo"}, OptionInteractive(false))
 		require.NoError(t, err)
 
 		require.Error(t, session.apps["exit"].Run([]string{"!!exit", "1", "2"}))
@@ -109,7 +109,7 @@ func TestExit(t *testing.T) {
 
 func TestHelp(t *testing.T) {
 	out := strings.Builder{}
-	session, err := NewSession("foo", OptionInteractive(false), OptionStdout(&out))
+	session, err := NewSession([]string{"foo"}, OptionInteractive(false), OptionStdout(&out))
 	require.NoError(t, err)
 
 	require.NoError(t, session.apps["help"].Run([]string{"!!help"}))
@@ -117,7 +117,7 @@ func TestHelp(t *testing.T) {
 }
 
 func TestHistory(t *testing.T) {
-	session, err := NewSession("foo",
+	session, err := NewSession([]string{"foo"},
 		OptionInteractive(false),
 		OptionHistory(NewHistory("foo", sinkWriter{}, []*Entry{
 			{
@@ -181,32 +181,73 @@ func TestHistory(t *testing.T) {
 	})
 }
 
-func TestExport(t *testing.T) {
-	session, err := NewSession("foo",
-		OptionInteractive(false),
-	)
-	require.NoError(t, err)
-
+func TestEnv(t *testing.T) {
 	t.Run("Ok", func(t *testing.T) {
-		require.NoError(t, session.apps["export"].Run([]string{"!!export", "set", "foo=bar"}))
+		session, err := NewSession([]string{"foo"},
+			OptionInteractive(false),
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, session.apps["env"].Run([]string{"!!env", "set", "foo", "bar"}))
 		assert.Equal(t, "bar", session.environ["foo"])
 	})
 
-	t.Run("BadArgs", func(t *testing.T) {
-		session.environ = make(map[string]string)
-		require.Error(t, session.apps["export"].Run([]string{"!!export", "foo=bar", "=baz"}))
+	t.Run("SetNoArgs", func(*testing.T) {
+		session, err := NewSession([]string{"foo"},
+			OptionInteractive(false),
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, session.apps["env"].Run([]string{"!!env", "set"}))
+		assert.Empty(t, session.environ)
+	})
+
+	t.Run("SetNoValue", func(t *testing.T) {
+		session, err := NewSession([]string{"foo"},
+			OptionInteractive(false),
+		)
+		require.NoError(t, err)
+
+		session.environ["foo"] = "bar"
+		defer delete(session.environ, "foo")
+
+		require.NoError(t, session.apps["env"].Run([]string{"!!env", "set", "foo"}))
 		assert.Empty(t, session.environ["foo"])
 	})
 
+	t.Run("SetTooManyArgs", func(t *testing.T) {
+		session, err := NewSession([]string{"foo"},
+			OptionInteractive(false),
+		)
+
+		require.NoError(t, err)
+		require.Error(t, session.apps["env"].Run([]string{"!!env", "set", "foo", "bar", "extra"}))
+	})
+
 	t.Run("Show", func(t *testing.T) {
+		session, err := NewSession([]string{"foo"},
+			OptionEnvironment(map[string]string{
+				"foo": "bar",
+				"baz": "",
+			}),
+			OptionInteractive(false),
+		)
+		require.NoError(t, err)
+
 		out := strings.Builder{}
 		session.stdout = &out
 
-		session.environ["foo"] = "bar"
-		session.environ["baz"] = ""
-
-		expected := "foo='bar'\nbaz=''\n"
-		require.NoError(t, session.apps["export"].Run([]string{"!!export", "show"}))
+		expected := "baz=''\nfoo='bar'\n"
+		require.NoError(t, session.apps["env"].Run([]string{"!!export", "show"}))
 		require.Equal(t, expected, out.String())
+	})
+
+	t.Run("UnsupportedCommand", func(t *testing.T) {
+		session, err := NewSession([]string{"foo"},
+			OptionInteractive(false),
+		)
+
+		require.NoError(t, err)
+		require.Error(t, session.apps["env"].Run([]string{"!!env", "invalid command"}))
 	})
 }

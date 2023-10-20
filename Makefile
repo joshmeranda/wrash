@@ -1,7 +1,7 @@
-GO_BUILD=go build -race
-GO_FMT=go fmt
-GO_TEST=go test
-GO_GENERATE=go generate
+GO_BUILD:=go build -race
+GO_FMT:=go fmt
+GO_TEST:=go test
+GO_GENERATE:=go generate
 
 ifdef VERBOSE
         GO_BUILD += -v -x
@@ -11,13 +11,19 @@ ifdef VERBOSE
         RM += --verbose
 endif
 
-TAG=$(shell git tag --contains HEAD)
+TAG:=$(shell git tag --contains HEAD)
 
-ifeq ($(TAG),)
-$(info no tag found for HEAD, generating... )
-TAG="$(shell git tag --sort version:refname --list | tail --lines 1)-$(shell git rev-parse HEAD)"
-$(info using tag ${TAG})
+ifeq (${TAG},)
+$(info no tag found for HEAD)
+TAG:="$(shell git tag --sort version:refname --list | tail --lines 1)-$(shell git rev-parse HEAD)"
 endif
+
+ifneq ("$(shell git status --porcelain)",)
+$(info HEAD is dirty)
+TAG:=${TAG}-dirty
+endif
+
+$(info using tag ${TAG})
 
 .PHONY: help
 
