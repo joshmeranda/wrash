@@ -40,8 +40,6 @@ help:
 	@echo "Values:"
 	@echo "  VERBOSE     run recipes with more verbose output"
 
-# todo: add install to v0.4.0
-
 # # # # # # # # # # # # # # # # # # # #
 # Build recipes                       #
 # # # # # # # # # # # # # # # # # # # #
@@ -65,6 +63,7 @@ bin/wrash: ${SOURCES}
 
 install:
 	${GO_INSTALL} .
+	${GO_BUILD} -ldflags "-X main.Version=${TAG}" -o $@ .
 
 # # # # # # # # # # # # # # # # # # # #
 # Test recipes                        #
