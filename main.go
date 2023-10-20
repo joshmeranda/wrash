@@ -16,25 +16,24 @@ var Version string = ""
 func run(ctx *cli.Context) error {
 	env := loadEnviron(nil)
 
-	str := strings.Join(ctx.Args().Slice(), " ")
-	if str == "" {
+	rawBase := strings.Join(ctx.Args().Slice(), " ")
+	if rawBase == "" {
 		return fmt.Errorf("no command provided")
 	}
 
-	cmd, err := args.Parse(str)
+	base, err := args.Parse(rawBase)
 	if err != nil {
 		return fmt.Errorf("could not parse command args: %w", err)
 	}
 
-	base, err := cmd.Expand(func(s string) string {
+	expanded, err := base.Expand(func(s string) string {
 		return env[s]
 	})
-
 	if err != nil {
 		return fmt.Errorf("could not expaqnd args: %s", err)
 	}
 
-	if _, err := exec.LookPath(base[0]); err != nil {
+	if _, err := exec.LookPath(expanded[0]); err != nil {
 		return fmt.Errorf("command not found: %s", base)
 	}
 
@@ -54,9 +53,9 @@ func run(ctx *cli.Context) error {
 	}
 	defer historyWriter.Close()
 
-	history := wrash.NewHistory(strings.Join(base, " "), historyWriter, entries)
+	history := wrash.NewHistory(rawBase, historyWriter, entries)
 
-	session, err := wrash.NewSession(base,
+	session, err := wrash.NewSession(rawBase,
 		wrash.OptionHistory(history),
 		wrash.OptionEnvironment(env),
 	)

@@ -65,7 +65,7 @@ func (sinkWriter) Write(p []byte) (n int, err error) {
 }
 
 type Session struct {
-	Base []string
+	Base string
 
 	stdout io.Writer
 	stderr io.Writer
@@ -83,7 +83,7 @@ type Session struct {
 	isFrozen         bool
 }
 
-func NewSession(base []string, opts ...Option) (*Session, error) {
+func NewSession(base string, opts ...Option) (*Session, error) {
 	session := &Session{
 		Base: base,
 
@@ -103,15 +103,15 @@ func NewSession(base []string, opts ...Option) (*Session, error) {
 	}
 
 	if session.history == nil {
-		session.history = NewHistory(strings.Join(base, " "), sinkWriter{}, make([]*Entry, 0)).(*history)
+		session.history = NewHistory(base, sinkWriter{}, make([]*Entry, 0)).(*history)
 	}
 
 	session.initBuiltins()
 
 	if session.interactive {
 		session.prompt = prompt.New(session.executor, session.completer,
-			prompt.OptionTitle("wrash"+strings.Join(base, " ")),
-			prompt.OptionPrefix(strings.Join(base, " ")+" >"),
+			prompt.OptionTitle("wrash"+base),
+			prompt.OptionPrefix(base+" >"),
 			prompt.OptionHistory(session.history),
 			prompt.OptionLivePrefix(session.livePrefix),
 			prompt.OptionSetExitCheckerOnInput(func(_ string, breakline bool) bool {
@@ -140,13 +140,12 @@ func (s *Session) executor(str string) {
 		return
 	}
 
-	cmd, err := args.Parse(str)
+	cmd, err := args.Parse(s.Base + " " + str)
 	if err != nil {
 		fmt.Fprintf(s.stderr, "could not parse args: %s\n", err)
 		return
 	}
 
-	args := s.Base
 	expanded, err := cmd.Expand(func(key string) string {
 		return s.environ[key]
 	})
@@ -154,25 +153,24 @@ func (s *Session) executor(str string) {
 		fmt.Fprintf(s.stderr, "could not expand args: %s\n", err)
 		return
 	}
-	args = append(args, expanded...)
 
 	s.previousExitCode = 0
 
 	if isBuiltin(str) {
-		args = args[1:]
-		app, found := s.apps[args[0][2:]]
+		expanded = expanded[1:]
+		app, found := s.apps[expanded[0][2:]]
 		if !found {
-			fmt.Fprintf(s.stderr, "unknown command: %s\n", args[0])
+			fmt.Fprintf(s.stderr, "unknown command: %s\n", expanded[0])
 			s.previousExitCode = 127
 			return
 		}
 
-		if err := app.Run(args); err != nil {
+		if err := app.Run(expanded); err != nil {
 			fmt.Fprintf(s.stderr, "could not run command: %s\n", err)
 			s.previousExitCode = 127
 		}
 	} else {
-		cmd := exec.Command(args[0], args[1:]...)
+		cmd := exec.Command(expanded[0], expanded[1:]...)
 		cmd.Stdout = s.stdout
 		cmd.Stderr = s.stderr
 		cmd.Stdin = s.stdin

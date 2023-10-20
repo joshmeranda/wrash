@@ -196,7 +196,7 @@ func (s *Session) doHistory(ctx *cli.Context) error {
 	show := ctx.Bool("show")
 
 	matched := lo.FilterMap(s.history.entries[:len(s.history.entries)-1], func(entry *Entry, _ int) (string, bool) {
-		if !(entry.Base == strings.Join(s.Base, " ") && pattern.MatchString(entry.Cmd)) {
+		if !(entry.Base == s.Base && pattern.MatchString(entry.Cmd)) {
 			return "", false
 		}
 
