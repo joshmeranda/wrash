@@ -1,12 +1,9 @@
 package wrash
 
 import (
-	"fmt"
 	"io"
-	"os"
 
 	prompt "github.com/joshmeranda/go-prompt"
-	"github.com/samber/lo"
 )
 
 type Option func(*Session) error
@@ -53,17 +50,9 @@ func OptionInteractive(interactive bool) Option {
 	}
 }
 
-func OptionInheritEnvironment() Option {
+func OptionEnvironment(env map[string]string) Option {
 	return func(s *Session) error {
-		s.environ = lo.Associate(os.Environ(), func(s string) (string, string) {
-			key, val, err := splitEnviron(s)
-			if err != nil {
-				panic(fmt.Sprintf("could not split environment variable '%s': %s", s, err))
-			}
-
-			return key, val
-		})
-
+		s.environ = env
 		return nil
 	}
 }

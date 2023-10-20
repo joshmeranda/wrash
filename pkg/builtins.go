@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -77,27 +78,27 @@ func (s *Session) initBuiltins() {
 		ErrWriter: s.stderr,
 	}
 
-	s.apps["export"] = &cli.App{
-		Name:        "export",
-		Usage:       "export",
+	s.apps["env"] = &cli.App{
+		Name:        "env",
+		Usage:       "env",
 		Description: "set or display environment variables for the current session",
-		Action:      s.doExport,
+		Action:      s.doEnv,
 		Commands: []*cli.Command{
 			{
 				Name:        "set",
-				Usage:       "export set [KEY=[VALUE]]...",
+				Usage:       "env set [KEY [VALUE]]",
 				Description: "set environment variables for the current session",
-				Action:      s.doExport,
+				Action:      s.doEnv,
 			},
 			{
 				Name:        "show",
-				Usage:       "export show",
+				Usage:       "env show",
 				Description: "show environment variables for the current session",
-				Action:      s.doExport,
+				Action:      s.doEnv,
 			},
 		},
 
-		DefaultCommand: "set",
+		DefaultCommand: "show",
 
 		Reader:    s.stdin,
 		Writer:    s.stdout,
@@ -195,7 +196,7 @@ func (s *Session) doHistory(ctx *cli.Context) error {
 	show := ctx.Bool("show")
 
 	matched := lo.FilterMap(s.history.entries[:len(s.history.entries)-1], func(entry *Entry, _ int) (string, bool) {
-		if !(entry.Base == s.Base && pattern.MatchString(entry.Cmd)) {
+		if !(entry.Base == strings.Join(s.Base, " ") && pattern.MatchString(entry.Cmd)) {
 			return "", false
 		}
 
@@ -215,30 +216,31 @@ func (s *Session) doHistory(ctx *cli.Context) error {
 	return nil
 }
 
-func (s *Session) doExport(ctx *cli.Context) error {
-	if ctx.Command.Name == "show" {
-		for key, value := range s.environ {
-			fmt.Fprintf(s.stdout, "%s='%s'\n", key, value)
+func (s *Session) doEnv(ctx *cli.Context) error {
+	switch ctx.Command.Name {
+	case "set":
+		args := ctx.Args().Slice()
+		switch len(args) {
+		case 0:
+			return nil
+		case 1:
+			delete(s.environ, args[0])
+			return nil
+		case 2:
+			s.environ[args[0]] = args[1]
+			return nil
+		default:
+			return fmt.Errorf("received unexpected arguments: %s", args[2:])
 		}
+	case "show":
+		keys := sort.StringSlice(lo.Keys[string](s.environ))
+		sort.Sort(keys)
 
+		for _, key := range keys {
+			fmt.Fprintf(s.stdout, "%s='%s'\n", key, s.environ[key])
+		}
 		return nil
+	default:
+		return fmt.Errorf("received unsupported command: %s", ctx.Command.Name)
 	}
-
-	// parse and validate strings
-	exported := make(map[string]string, ctx.Args().Len())
-	for _, arg := range ctx.Args().Slice() {
-		key, value, err := splitEnviron(arg)
-		if err != nil {
-			return fmt.Errorf("invalid environment pair: %s", err)
-		}
-
-		exported[key] = value
-	}
-
-	// actually export the values
-	for key, value := range exported {
-		s.environ[key] = value
-	}
-
-	return nil
 }

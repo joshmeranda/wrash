@@ -1,4 +1,4 @@
-package wrash
+package main
 
 import (
 	"fmt"

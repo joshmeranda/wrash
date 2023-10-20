@@ -7,38 +7,34 @@ import (
 	"strings"
 
 	wrash "github.com/joshmeranda/wrash/pkg"
+	"github.com/joshmeranda/wrash/pkg/args"
 	"github.com/urfave/cli/v2"
-	"gopkg.in/yaml.v3"
 )
 
 var Version string = ""
 
-func loadHistoryEntries(path string) ([]*wrash.Entry, error) {
-	var entries []*wrash.Entry
-
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return entries, nil
-	}
-
-	if err != nil {
-		return nil, fmt.Errorf("could not read history file: %w", err)
-	}
-
-	if err := yaml.Unmarshal(data, &entries); err != nil {
-		return nil, fmt.Errorf("could not unmarshal history entries: %w", err)
-	}
-
-	return entries, nil
-}
-
 func run(ctx *cli.Context) error {
-	base := strings.Join(ctx.Args().Slice(), " ")
-	if base == "" {
+	env := loadEnviron(nil)
+
+	str := strings.Join(ctx.Args().Slice(), " ")
+	if str == "" {
 		return fmt.Errorf("no command provided")
 	}
 
-	if _, err := exec.LookPath(base); err != nil {
+	cmd, err := args.Parse(str)
+	if err != nil {
+		return fmt.Errorf("could not parse command args: %w", err)
+	}
+
+	base, err := cmd.Expand(func(s string) string {
+		return env[s]
+	})
+
+	if err != nil {
+		return fmt.Errorf("could not expaqnd args: %s", err)
+	}
+
+	if _, err := exec.LookPath(base[0]); err != nil {
 		return fmt.Errorf("command not found: %s", base)
 	}
 
@@ -58,11 +54,11 @@ func run(ctx *cli.Context) error {
 	}
 	defer historyWriter.Close()
 
-	history := wrash.NewHistory(base, historyWriter, entries)
+	history := wrash.NewHistory(strings.Join(base, " "), historyWriter, entries)
 
 	session, err := wrash.NewSession(base,
 		wrash.OptionHistory(history),
-		wrash.OptionInheritEnvironment(),
+		wrash.OptionEnvironment(env),
 	)
 	if err != nil {
 		return err

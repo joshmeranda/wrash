@@ -65,7 +65,7 @@ func (sinkWriter) Write(p []byte) (n int, err error) {
 }
 
 type Session struct {
-	Base string
+	Base []string
 
 	stdout io.Writer
 	stderr io.Writer
@@ -83,7 +83,7 @@ type Session struct {
 	isFrozen         bool
 }
 
-func NewSession(base string, opts ...Option) (*Session, error) {
+func NewSession(base []string, opts ...Option) (*Session, error) {
 	session := &Session{
 		Base: base,
 
@@ -103,15 +103,15 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 	}
 
 	if session.history == nil {
-		session.history = NewHistory(base, sinkWriter{}, make([]*Entry, 0)).(*history)
+		session.history = NewHistory(strings.Join(base, " "), sinkWriter{}, make([]*Entry, 0)).(*history)
 	}
 
 	session.initBuiltins()
 
 	if session.interactive {
 		session.prompt = prompt.New(session.executor, session.completer,
-			prompt.OptionTitle("wrash"+base),
-			prompt.OptionPrefix(base+" >"),
+			prompt.OptionTitle("wrash"+strings.Join(base, " ")),
+			prompt.OptionPrefix(strings.Join(base, " ")+" >"),
 			prompt.OptionHistory(session.history),
 			prompt.OptionLivePrefix(session.livePrefix),
 			prompt.OptionSetExitCheckerOnInput(func(_ string, breakline bool) bool {
@@ -146,7 +146,7 @@ func (s *Session) executor(str string) {
 		return
 	}
 
-	args := []string{s.Base}
+	args := s.Base
 	expanded, err := cmd.Expand(func(key string) string {
 		return s.environ[key]
 	})
