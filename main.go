@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	wrash "github.com/joshmeranda/wrash/pkg"
@@ -70,13 +69,6 @@ func run(ctx *cli.Context) error {
 }
 
 func main() {
-	m, err := filepath.Glob("a*b")
-	if err != nil {
-		fmt.Printf("failed to expand glob: %w", err)
-		return
-	}
-	fmt.Printf("glob matches: %s\n", m)
-
 	app := &cli.App{
 		Name:        "wrash",
 		Version:     Version,
