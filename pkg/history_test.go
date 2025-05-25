@@ -1,6 +1,7 @@
 package wrash
 
 import (
+	"io"
 	"testing"
 
 	prompt "github.com/joshmeranda/go-prompt"
@@ -27,7 +28,7 @@ func TestHistoryAdd(t *testing.T) {
 	base := "foo"
 
 	t.Run("Unique", func(t *testing.T) {
-		h := NewHistory(base, sinkWriter{}, []*Entry{}).(*history)
+		h := NewHistory(base, io.Discard, []*Entry{}).(*history)
 		assert.Equal(t, []*Entry{
 			{
 				Base: base,
@@ -61,7 +62,7 @@ func TestHistoryAdd(t *testing.T) {
 	})
 
 	t.Run("DuplicateSameBase", func(t *testing.T) {
-		h := NewHistory(base, sinkWriter{}, []*Entry{
+		h := NewHistory(base, io.Discard, []*Entry{
 			{
 				Base: "foo",
 				Cmd:  "a",
@@ -90,7 +91,7 @@ func TestHistoryAdd(t *testing.T) {
 	})
 
 	t.Run("DuplicateDifferentBase", func(t *testing.T) {
-		h := NewHistory(base, sinkWriter{}, []*Entry{
+		h := NewHistory(base, io.Discard, []*Entry{
 			{
 				Base: "foo",
 				Cmd:  "a",
@@ -133,7 +134,7 @@ func TestHistoryAdd(t *testing.T) {
 
 func TestHistoryOlder(t *testing.T) {
 	t.Run("BaseFoo", func(t *testing.T) {
-		h := NewHistory("foo", sinkWriter{}, entries)
+		h := NewHistory("foo", io.Discard, entries)
 
 		buf := prompt.NewBuffer()
 		buf.InsertText("", false, true)
@@ -152,7 +153,7 @@ func TestHistoryOlder(t *testing.T) {
 	})
 
 	t.Run("BaseBar", func(t *testing.T) {
-		h := NewHistory("bar", sinkWriter{}, entries)
+		h := NewHistory("bar", io.Discard, entries)
 
 		buf := prompt.NewBuffer()
 		buf.InsertText("", false, true)
@@ -168,7 +169,7 @@ func TestHistoryOlder(t *testing.T) {
 
 	t.Run("BaseFooWithChanges", func(t *testing.T) {
 		h := NewHistory(
-			"foo", sinkWriter{}, []*Entry{
+			"foo", io.Discard, []*Entry{
 				{
 					Base:    "foo",
 					Cmd:     "a",
@@ -188,7 +189,7 @@ func TestHistoryOlder(t *testing.T) {
 
 func TestHistoryNewer(t *testing.T) {
 	t.Run("WrappedCommandFoo", func(t *testing.T) {
-		h := NewHistory("foo", sinkWriter{}, entries).(*history)
+		h := NewHistory("foo", io.Discard, entries).(*history)
 		h.current = 0
 
 		buf := prompt.NewBuffer()
@@ -208,7 +209,7 @@ func TestHistoryNewer(t *testing.T) {
 	})
 
 	t.Run("WrappedCommandBar", func(t *testing.T) {
-		h := NewHistory("bar", sinkWriter{}, entries).(*history)
+		h := NewHistory("bar", io.Discard, entries).(*history)
 		h.current = 0
 
 		buf := prompt.NewBuffer()
@@ -229,7 +230,7 @@ func TestHistoryNewer(t *testing.T) {
 
 	t.Run("BaseFooWithChanges", func(t *testing.T) {
 		h := NewHistory(
-			"foo", sinkWriter{}, []*Entry{
+			"foo", io.Discard, []*Entry{
 				{},
 				{
 					Base:    "foo",
@@ -250,7 +251,7 @@ func TestHistoryNewer(t *testing.T) {
 }
 
 func TestHistoryFullTraverse(t *testing.T) {
-	history := NewHistory("foo", sinkWriter{}, []*Entry{
+	history := NewHistory("foo", io.Discard, []*Entry{
 		{
 			Base:    "foo",
 			Cmd:     "a",

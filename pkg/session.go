@@ -58,12 +58,6 @@ func goPreviousBoundary(buff *prompt.Buffer) {
 	buff.CursorLeft(boundary)
 }
 
-type sinkWriter struct{}
-
-func (sinkWriter) Write(p []byte) (n int, err error) {
-	return len(p), nil
-}
-
 type Session struct {
 	Base string
 
@@ -103,7 +97,7 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 	}
 
 	if session.history == nil {
-		session.history = NewHistory(base, sinkWriter{}, make([]*Entry, 0)).(*history)
+		session.history = NewHistory(base, io.Discard, make([]*Entry, 0)).(*history)
 	}
 
 	session.initBuiltins()

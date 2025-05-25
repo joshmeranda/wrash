@@ -1,6 +1,7 @@
 package wrash
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -119,7 +120,7 @@ func TestHelp(t *testing.T) {
 func TestHistory(t *testing.T) {
 	session, err := NewSession("foo",
 		OptionInteractive(false),
-		OptionHistory(NewHistory("foo", sinkWriter{}, []*Entry{
+		OptionHistory(NewHistory("foo", io.Discard, []*Entry{
 			{
 				Base: "foo",
 				Cmd:  "bar",
