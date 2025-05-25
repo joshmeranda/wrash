@@ -47,13 +47,7 @@ func run(ctx *cli.Context) error {
 		return err
 	}
 
-	historyWriter, err := os.Create(historyPath)
-	if err != nil {
-		return nil
-	}
-	defer historyWriter.Close()
-
-	history := wrash.NewHistory(rawBase, historyWriter, entries)
+	history := wrash.NewHistory(rawBase, wrash.NewHistoryWriter(historyPath), entries)
 
 	session, err := wrash.NewSession(rawBase,
 		wrash.OptionHistory(history),

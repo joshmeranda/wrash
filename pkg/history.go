@@ -3,6 +3,7 @@ package wrash
 import (
 	"fmt"
 	"io"
+	"os"
 
 	prompt "github.com/joshmeranda/go-prompt"
 	"gopkg.in/yaml.v3"
@@ -20,7 +21,41 @@ type history struct {
 
 	current int
 	base    string
-	w       io.Writer
+
+	w io.Writer
+}
+
+type WriterFunc func([]byte) (int, error)
+
+func (f WriterFunc) Write(b []byte) (int, error) {
+	return f(b)
+}
+
+func NewHistoryWriter(path string) io.Writer {
+	return WriterFunc(func(b []byte) (int, error) {
+		if err := os.WriteFile(path, b, 0666); err != nil {
+			return 0, fmt.Errorf("could not sync history: %w", err)
+		}
+
+		return 0, nil
+	})
+}
+
+func NewHistory(base string, w io.Writer, entries []*Entry) prompt.History {
+	newEntries := make([]*Entry, len(entries), len(entries)+1)
+	copy(newEntries, entries)
+	newEntries = append(newEntries, &Entry{
+		Base: base,
+	})
+
+	return &history{
+		entries: newEntries,
+
+		current: len(newEntries) - 1,
+		base:    base,
+
+		w: w,
+	}
 }
 
 func (h *history) Add(inputs ...string) {
@@ -131,6 +166,7 @@ func (h *history) Newer(buf *prompt.Buffer) (*prompt.Buffer, bool) {
 	return buf, false
 }
 
+// todo: read the curent contents and reconcile with the new contents (will want to add some type of ordering mechanism)
 func (h *history) Sync() error {
 	data, err := yaml.Marshal(h.entries[:len(h.entries)-1])
 	if err != nil {
@@ -142,19 +178,4 @@ func (h *history) Sync() error {
 	}
 
 	return nil
-}
-
-func NewHistory(base string, w io.Writer, entries []*Entry) prompt.History {
-	newEntries := make([]*Entry, len(entries), len(entries)+1)
-	copy(newEntries, entries)
-	newEntries = append(newEntries, &Entry{
-		Base: base,
-	})
-
-	return &history{
-		entries: newEntries,
-		current: len(newEntries) - 1,
-		base:    base,
-		w:       w,
-	}
 }
