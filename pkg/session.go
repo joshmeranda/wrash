@@ -130,7 +130,7 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 func (s *Session) executor(str string) {
 	defer s.history.Clear()
 
-	if str == "" {
+	if strings.TrimSpace(str) == "" {
 		return
 	}
 
