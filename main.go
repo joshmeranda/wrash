@@ -34,7 +34,7 @@ func run(ctx *cli.Context) error {
 	}
 
 	if _, err := exec.LookPath(expanded[0]); err != nil {
-		return fmt.Errorf("command not found: %s", base)
+		return fmt.Errorf("command not found: %s", expanded[0])
 	}
 
 	historyPath, err := GetHistoryFile()
