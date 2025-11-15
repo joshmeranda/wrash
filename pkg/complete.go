@@ -3,9 +3,11 @@ package wrash
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	prompt "github.com/joshmeranda/go-prompt"
 	"github.com/samber/lo"
+	"github.com/urfave/cli/v2"
 )
 
 // todo: add support for loading completers from a config file
@@ -41,4 +43,15 @@ func getFilesWithPrefix(prefix string) []prompt.Suggest {
 
 func fileCompleter(doc prompt.Document) []prompt.Suggest {
 	return getFilesWithPrefix(doc.GetWordBeforeCursor())
+}
+
+func builtinsCompleter(doc prompt.Document, builtins map[string]*cli.App) []prompt.Suggest{
+	return lo.Filter(lo.MapToSlice(builtins, func(name string, app *cli.App) prompt.Suggest {
+		return prompt.Suggest{
+			Text:        "!!" + app.Name,
+			Description: app.Description,
+		}
+	}), func(s prompt.Suggest, _ int) bool {
+		return strings.HasPrefix(s.Text, doc.TextBeforeCursor())
+	})
 }

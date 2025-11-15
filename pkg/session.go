@@ -192,14 +192,7 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 
 	switch {
 	case strings.HasPrefix(doc.TextBeforeCursor(), "!!"):
-		suggestions = lo.Filter(lo.MapToSlice(s.apps, func(name string, app *cli.App) prompt.Suggest {
-			return prompt.Suggest{
-				Text:        "!!" + app.Name,
-				Description: app.Description,
-			}
-		}), func(s prompt.Suggest, _ int) bool {
-			return strings.HasPrefix(s.Text, doc.TextBeforeCursor())
-		})
+		suggestions = builtinsCompleter(doc, s.apps)
 	default:
 		suggestions = fileCompleter(doc)
 	}
