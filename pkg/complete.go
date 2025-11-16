@@ -13,7 +13,6 @@ import (
 	"time"
 
 	prompt "github.com/joshmeranda/go-prompt"
-	"github.com/samber/lo"
 )
 
 type Completer interface {
@@ -40,21 +39,29 @@ func getFilesWithPrefix(prefix string) []prompt.Suggest {
 		return []prompt.Suggest{}
 	}
 
-	return lo.FilterMap(paths, func(path string, _ int) (prompt.Suggest, bool) {
-		// todo: ideally we woulnd't need to do make another syscall just to get the info
-		info, err := os.Stat(path)
+	suggestions := make([]prompt.Suggest, 0, len(paths))
+
+	for _, p := range paths {
+		info, err := os.Stat(p)
 		if err != nil {
-			return prompt.Suggest{}, false
+			fmt.Printf("Warning: failed to stat file '%s'\n", p)
+			return nil
 		}
 
 		if info.IsDir() {
-			path += "/"
+			p += "/"
 		}
 
-		return prompt.Suggest{
-			Text: path,
-		}, true
+		suggestions = append(suggestions, prompt.Suggest{
+			Text: p,
+		})
+	}
+
+	slices.SortFunc(suggestions, func(left prompt.Suggest, right prompt.Suggest) int {
+		return strings.Compare(left.Text, right.Text)
 	})
+
+	return suggestions
 }
 
 func fileCompleter(doc prompt.Document) []prompt.Suggest {

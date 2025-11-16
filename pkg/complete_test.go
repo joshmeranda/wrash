@@ -33,7 +33,90 @@ func writeScript(dir string, content string) (string, error) {
 	return f.Name(), nil
 }
 
-func TestFileCompleter(t *testing.T) {}
+func TestFileCompleter(t *testing.T) {
+	cases := []struct {
+		name string
+		line string
+
+		expected []prompt.Suggest
+	}{
+		{
+			name: "empty line",
+
+			expected: []prompt.Suggest{},
+		},
+		{
+			name: "with prefix",
+			line: "h",
+
+			expected: []prompt.Suggest{
+				{
+					Text: "history.go",
+				},
+				{
+					Text: "history_test.go",
+				},
+			},
+		},
+		{
+			name: "with wildcard",
+			line: "*_test.go",
+
+			expected: []prompt.Suggest{
+				{
+					Text: "builtins_test.go",
+				},
+				{
+					Text: "complete_test.go",
+				},
+				{
+					Text: "history_test.go",
+				},
+				{
+					Text: "session_test.go",
+				},
+			},
+		},
+		{
+			name: "with current dir",
+			line: "./o",
+
+			expected: []prompt.Suggest{
+				{
+					// todo: this should really be "./options.go"
+					Text: "options.go",
+				},
+			},
+		},
+		{
+			name: "with external dir",
+			line: "../tests/resources/",
+
+			expected: []prompt.Suggest{
+				{
+					Text: "../tests/resources/a_directory/",
+				},
+				{
+					Text: "../tests/resources/history/",
+				},
+				{
+					Text: "../tests/resources/some_other_directory/",
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			buff := prompt.NewBuffer()
+			buff.InsertText(c.line, false, true)
+
+			actual := fileCompleter(*buff.Document())
+
+			assert.Equal(t, c.expected, actual)
+		})
+	}
+}
 
 func TestBuiltinCompleter(t *testing.T) {
 	session, err := NewSession("git", OptionInteractive(false))
