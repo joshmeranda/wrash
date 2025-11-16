@@ -18,6 +18,7 @@ const (
 	runeset = "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?_"
 )
 
+// todo: this should support changing cases as well as just whitespaces
 func getNextBoundary(runeset string, text string) int {
 	if text == "" {
 		return 0
@@ -68,7 +69,8 @@ type Session struct {
 	prompt      *prompt.Prompt
 	interactive bool // useful for disable tty requirement for testing
 
-	environ map[string]string
+	environ     map[string]string
+	completions map[string]Completer
 
 	history          *history
 	exitCalled       bool
@@ -81,7 +83,8 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 	session := &Session{
 		Base: base,
 
-		environ: make(map[string]string),
+		environ:     make(map[string]string),
+		completions: make(map[string]Completer),
 
 		interactive: true,
 
@@ -188,16 +191,19 @@ func (s *Session) livePrefix() (string, bool) {
 }
 
 func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
-	var suggestions []prompt.Suggest
+	completer, ok := s.completions[s.Base]
 
-	switch {
-	case strings.HasPrefix(doc.TextBeforeCursor(), "!!"):
-		suggestions = builtinsCompleter(doc, s.apps)
-	default:
-		suggestions = fileCompleter(doc)
+	if !ok {
+		switch {
+		case strings.HasPrefix(doc.TextBeforeCursor(), "!!"):
+			completer = CompleterFunc(s.builtinsCompleter)
+
+		default:
+			completer = CompleterFunc(fileCompleter)
+		}
 	}
 
-	return suggestions
+	return completer.Complete(doc)
 }
 
 func (s *Session) Run() {

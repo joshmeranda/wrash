@@ -38,6 +38,17 @@ func (s *Session) initBuiltins() {
 		Usage:       "complete",
 		Description: "configure command completion",
 		Action:      s.doComplete,
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:  "disable-file",
+				Usage: "do not populate suggestions with files if there are no other suggestions",
+			},
+			&cli.StringFlag{
+				Name:     "command",
+				Usage:    "the command to run to get suggestions",
+				Required: true,
+			},
+		},
 
 		Reader:    s.stdin,
 		Writer:    s.stdout,
@@ -141,6 +152,62 @@ func (s *Session) doCd(ctx *cli.Context) error {
 	return nil
 }
 
+func (s *Session) doComplete(ctx *cli.Context) error {
+	args := ctx.Args()
+
+	if args.Len() == 0 {
+		return fmt.Errorf("expected a command, but found none")
+	} else if args.Len() > 1 {
+		return fmt.Errorf("expected a sinlge command, but found '%d'", args.Len())
+	}
+
+	target := args.First()
+	command := ctx.String("command")
+
+	var disableFile bool
+	if ctx.Bool("dissable-flag") {
+		disableFile = true
+	}
+
+	completer, err := NewCompletion(disableFile, command)
+	if err != nil {
+		return fmt.Errorf("failed to register completion: %w", err)
+	}
+
+	s.completions[target] = completer
+
+	return nil
+}
+
+func (s *Session) doEnv(ctx *cli.Context) error {
+	switch ctx.Command.Name {
+	case "set":
+		args := ctx.Args().Slice()
+		switch len(args) {
+		case 0:
+			return nil
+		case 1:
+			delete(s.environ, args[0])
+			return nil
+		case 2:
+			s.environ[args[0]] = args[1]
+			return nil
+		default:
+			return fmt.Errorf("received unexpected arguments: %s", args[2:])
+		}
+	case "show":
+		keys := sort.StringSlice(lo.Keys[string](s.environ))
+		sort.Sort(keys)
+
+		for _, key := range keys {
+			fmt.Fprintf(s.stdout, "%s='%s'\n", key, s.environ[key])
+		}
+		return nil
+	default:
+		return fmt.Errorf("received unsupported command: %s", ctx.Command.Name)
+	}
+}
+
 func (s *Session) doExit(ctx *cli.Context) error {
 	args := ctx.Args()
 	if !args.Present() {
@@ -225,37 +292,4 @@ func (s *Session) doHistory(ctx *cli.Context) error {
 	fmt.Fprintln(s.stdout, strings.Join(matched, "\n"))
 
 	return nil
-}
-
-func (s *Session) doEnv(ctx *cli.Context) error {
-	switch ctx.Command.Name {
-	case "set":
-		args := ctx.Args().Slice()
-		switch len(args) {
-		case 0:
-			return nil
-		case 1:
-			delete(s.environ, args[0])
-			return nil
-		case 2:
-			s.environ[args[0]] = args[1]
-			return nil
-		default:
-			return fmt.Errorf("received unexpected arguments: %s", args[2:])
-		}
-	case "show":
-		keys := sort.StringSlice(lo.Keys[string](s.environ))
-		sort.Sort(keys)
-
-		for _, key := range keys {
-			fmt.Fprintf(s.stdout, "%s='%s'\n", key, s.environ[key])
-		}
-		return nil
-	default:
-		return fmt.Errorf("received unsupported command: %s", ctx.Command.Name)
-	}
-}
-
-func (s *Session) doComplete(ctx *cli.Context) error {
-	panic("nyi")
 }

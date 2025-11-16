@@ -52,6 +52,7 @@ func OptionInteractive(interactive bool) Option {
 
 func OptionEnvironment(env map[string]string) Option {
 	return func(s *Session) error {
+		// todo: we probably want to copy the map instead of referencing it directly
 		s.environ = env
 		return nil
 	}
