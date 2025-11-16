@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/joshmeranda/wrash/pkg/args"
 	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
 )
@@ -44,9 +45,12 @@ func (s *Session) initBuiltins() {
 				Usage: "do not populate suggestions with files if there are no other suggestions",
 			},
 			&cli.StringFlag{
-				Name:     "command",
-				Usage:    "the command to run to get suggestions",
-				Required: true,
+				Name:  "command",
+				Usage: "the command to run to get suggestions",
+			},
+			&cli.StringFlag{
+				Name:  "path",
+				Usage: "the path to the executable to get suggestions",
 			},
 		},
 
@@ -153,23 +157,34 @@ func (s *Session) doCd(ctx *cli.Context) error {
 }
 
 func (s *Session) doComplete(ctx *cli.Context) error {
-	args := ctx.Args()
+	argv := ctx.Args()
 
-	if args.Len() == 0 {
+	if argv.Len() == 0 {
 		return fmt.Errorf("expected a command, but found none")
-	} else if args.Len() > 1 {
-		return fmt.Errorf("expected a sinlge command, but found '%d'", args.Len())
+	} else if argv.Len() > 1 {
+		return fmt.Errorf("expected a sinlge command, but found '%d'", argv.Len())
 	}
 
-	target := args.First()
-	command := ctx.String("command")
+	target := argv.First()
+	path := ctx.String("path")
+
+	var command []string
+
+	if commandRaw := ctx.String("command"); len(commandRaw) > 0 {
+		cmd, err := args.Parse(commandRaw)
+		if err != nil {
+			return fmt.Errorf("failed to parse command: %w", err)
+		}
+
+		command = cmd.Args()
+	}
 
 	var disableFile bool
 	if ctx.Bool("dissable-flag") {
 		disableFile = true
 	}
 
-	completer, err := NewCompletion(disableFile, command)
+	completer, err := NewCompletion(disableFile, path, command)
 	if err != nil {
 		return fmt.Errorf("failed to register completion: %w", err)
 	}

@@ -94,26 +94,38 @@ func (s *Session) builtinsCompleter(doc prompt.Document) []prompt.Suggest {
 // running the command, or the command exits witha non-zero exit code, a warning is written and returns an empty list
 // of suggestions.
 // todo: support descriptions as well (wil help with completing commits)
+// todo: add flags
+// todo: add subcommands
 type commandCompletion struct {
 	// disableFile indicates that we should not use the fileCompleter if the given command returns an empty list of
 	// suggetions.
 	disableFile bool
 
-	// todo: add flags
-	// todo: add subcommands
-
+	// path is the path to the executable to run to get suggestions.
 	path string
+
+	// command is the command to run to get suggestions.
+	command []string
 }
 
-func NewCompletion(disableFile bool, path string) (Completer, error) {
-	var err error
-	if path, err = exec.LookPath(path); err != nil {
-		return nil, err
+func NewCompletion(disableFile bool, path string, command []string) (Completer, error) {
+	if path != "" && len(command) != 0 {
+		return nil, fmt.Errorf("path and command are mutually exclusive")
+	} else if path == "" && len(command) == 0 {
+		return nil, fmt.Errorf("one of path and command must be specified")
+	}
+
+	if path != "" {
+		var err error
+		if path, err = exec.LookPath(path); err != nil {
+			return nil, err
+		}
 	}
 
 	return &commandCompletion{
 		disableFile: disableFile,
 		path:        path,
+		command:     command,
 	}, nil
 }
 
@@ -123,7 +135,18 @@ func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {
 
 	out := bytes.NewBuffer(nil)
 
-	cmd := exec.CommandContext(ctx, c.path)
+	var cmd *exec.Cmd
+
+	switch {
+	case len(c.command) != 0:
+		cmd = exec.CommandContext(ctx, c.command[0], c.command[1:]...)
+	case c.path != "":
+		cmd = exec.CommandContext(ctx, c.path)
+	default:
+		fmt.Printf("Warning: encountered impossible state: no path or command")
+		return []prompt.Suggest{}
+	}
+
 	cmd.Stdout = out
 	cmd.Stderr = io.Discard
 

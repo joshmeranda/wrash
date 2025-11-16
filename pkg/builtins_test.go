@@ -72,6 +72,79 @@ func TestCd(t *testing.T) {
 	})
 }
 
+func TestComplete(t *testing.T) {}
+
+func TestEnv(t *testing.T) {
+	t.Run("Ok", func(t *testing.T) {
+		session, err := NewSession("foo",
+			OptionInteractive(false),
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, session.apps["env"].Run([]string{"!!env", "set", "foo", "bar"}))
+		assert.Equal(t, "bar", session.environ["foo"])
+	})
+
+	t.Run("SetNoArgs", func(*testing.T) {
+		session, err := NewSession("foo",
+			OptionInteractive(false),
+		)
+		require.NoError(t, err)
+
+		require.NoError(t, session.apps["env"].Run([]string{"!!env", "set"}))
+		assert.Empty(t, session.environ)
+	})
+
+	t.Run("SetNoValue", func(t *testing.T) {
+		session, err := NewSession("foo",
+			OptionInteractive(false),
+		)
+		require.NoError(t, err)
+
+		session.environ["foo"] = "bar"
+		defer delete(session.environ, "foo")
+
+		require.NoError(t, session.apps["env"].Run([]string{"!!env", "set", "foo"}))
+		assert.Empty(t, session.environ["foo"])
+	})
+
+	t.Run("SetTooManyArgs", func(t *testing.T) {
+		session, err := NewSession("foo",
+			OptionInteractive(false),
+		)
+
+		require.NoError(t, err)
+		require.Error(t, session.apps["env"].Run([]string{"!!env", "set", "foo", "bar", "extra"}))
+	})
+
+	t.Run("Show", func(t *testing.T) {
+		session, err := NewSession("foo",
+			OptionEnvironment(map[string]string{
+				"foo": "bar",
+				"baz": "",
+			}),
+			OptionInteractive(false),
+		)
+		require.NoError(t, err)
+
+		out := strings.Builder{}
+		session.stdout = &out
+
+		expected := "baz=''\nfoo='bar'\n"
+		require.NoError(t, session.apps["env"].Run([]string{"!!export", "show"}))
+		require.Equal(t, expected, out.String())
+	})
+
+	t.Run("UnsupportedCommand", func(t *testing.T) {
+		session, err := NewSession("foo",
+			OptionInteractive(false),
+		)
+
+		require.NoError(t, err)
+		require.Error(t, session.apps["env"].Run([]string{"!!env", "invalid command"}))
+	})
+}
+
 func TestExit(t *testing.T) {
 	t.Run("NoCodeGiven", func(t *testing.T) {
 		session, err := NewSession("foo", OptionInteractive(false))
@@ -179,76 +252,5 @@ func TestHistory(t *testing.T) {
 
 		require.NoError(t, session.apps["history"].Run([]string{"!!history", "--number", "2"}))
 		require.Equal(t, expected, out.String())
-	})
-}
-
-func TestEnv(t *testing.T) {
-	t.Run("Ok", func(t *testing.T) {
-		session, err := NewSession("foo",
-			OptionInteractive(false),
-		)
-		require.NoError(t, err)
-
-		require.NoError(t, session.apps["env"].Run([]string{"!!env", "set", "foo", "bar"}))
-		assert.Equal(t, "bar", session.environ["foo"])
-	})
-
-	t.Run("SetNoArgs", func(*testing.T) {
-		session, err := NewSession("foo",
-			OptionInteractive(false),
-		)
-		require.NoError(t, err)
-
-		require.NoError(t, session.apps["env"].Run([]string{"!!env", "set"}))
-		assert.Empty(t, session.environ)
-	})
-
-	t.Run("SetNoValue", func(t *testing.T) {
-		session, err := NewSession("foo",
-			OptionInteractive(false),
-		)
-		require.NoError(t, err)
-
-		session.environ["foo"] = "bar"
-		defer delete(session.environ, "foo")
-
-		require.NoError(t, session.apps["env"].Run([]string{"!!env", "set", "foo"}))
-		assert.Empty(t, session.environ["foo"])
-	})
-
-	t.Run("SetTooManyArgs", func(t *testing.T) {
-		session, err := NewSession("foo",
-			OptionInteractive(false),
-		)
-
-		require.NoError(t, err)
-		require.Error(t, session.apps["env"].Run([]string{"!!env", "set", "foo", "bar", "extra"}))
-	})
-
-	t.Run("Show", func(t *testing.T) {
-		session, err := NewSession("foo",
-			OptionEnvironment(map[string]string{
-				"foo": "bar",
-				"baz": "",
-			}),
-			OptionInteractive(false),
-		)
-		require.NoError(t, err)
-
-		out := strings.Builder{}
-		session.stdout = &out
-
-		expected := "baz=''\nfoo='bar'\n"
-		require.NoError(t, session.apps["env"].Run([]string{"!!export", "show"}))
-		require.Equal(t, expected, out.String())
-	})
-
-	t.Run("UnsupportedCommand", func(t *testing.T) {
-		session, err := NewSession("foo",
-			OptionInteractive(false),
-		)
-
-		require.NoError(t, err)
-		require.Error(t, session.apps["env"].Run([]string{"!!env", "invalid command"}))
 	})
 }

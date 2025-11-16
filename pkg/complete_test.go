@@ -219,12 +219,13 @@ func TestCommandCompleter(t *testing.T) {
 
 			disableFile bool
 			path        string
+			command     []string
 
 			expected commandCompletion
 			err      string
 		}{
 			{
-				name: "absolute path exists",
+				name: "with absolute path exists",
 				path: scriptPathWithSuggestions,
 
 				expected: commandCompletion{
@@ -233,7 +234,7 @@ func TestCommandCompleter(t *testing.T) {
 			},
 			{
 				// todo: we probably want to update this to something more controllable (add scriptPath to PATH and run)
-				name: "path in PATH",
+				name: "with path in PATH",
 				path: filepath.Base(scriptPathWithSuggestions),
 
 				expected: commandCompletion{
@@ -241,16 +242,38 @@ func TestCommandCompleter(t *testing.T) {
 				},
 			},
 			{
-				name: "path does not exist",
+				name: "with path does not exist",
 				path: "i.do.not.exist",
 
 				err: "exec: \"i.do.not.exist\": executable file not found in $PATH",
+			},
+
+			{
+				name:    "with command",
+				command: []string{"echo", "a"},
+
+				expected: commandCompletion{
+					command: []string{"echo", "a"},
+				},
+			},
+
+			{
+				name:    "with path and command",
+				path:    scriptPathWithSuggestions,
+				command: []string{"echo", "a"},
+
+				err: "path and command are mutually exclusive",
+			},
+			{
+				name: "without path or command",
+
+				err: "one of path and command must be specified",
 			},
 		}
 
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
-				completer, err := NewCompletion(c.disableFile, c.path)
+				completer, err := NewCompletion(c.disableFile, c.path, c.command)
 
 				if c.err == "" {
 					assert.NoError(t, err)
@@ -272,7 +295,7 @@ func TestCommandCompleter(t *testing.T) {
 			expected []prompt.Suggest
 		}{
 			{
-				name: "script with completion",
+				name: "with path with suggestion",
 				completer: &commandCompletion{
 					path: scriptPathWithSuggestions,
 				},
@@ -290,7 +313,7 @@ func TestCommandCompleter(t *testing.T) {
 				},
 			},
 			{
-				name: "script with completion with prefix",
+				name: "with path with suggestion with prefix",
 				line: "option",
 				completer: &commandCompletion{
 					path: scriptPathWithSuggestions,
@@ -306,7 +329,7 @@ func TestCommandCompleter(t *testing.T) {
 				},
 			},
 			{
-				name: "script without completions without file backup",
+				name: "with path without completions without file backup",
 				completer: &commandCompletion{
 					disableFile: true,
 					path:        "echo",
@@ -315,10 +338,60 @@ func TestCommandCompleter(t *testing.T) {
 				expected: []prompt.Suggest{},
 			},
 			{
-				name: "script without completions with file backup",
+				name: "with path without completions with file backup",
 				line: scriptPathWithSuggestions[:len(scriptPathWithSuggestions)-1],
 				completer: &commandCompletion{
 					path: "echo",
+				},
+
+				expected: []prompt.Suggest{
+					{
+						Text: scriptPathWithSuggestions,
+					},
+				},
+			},
+
+			{
+				name: "with command with suggestions",
+				completer: &commandCompletion{
+					disableFile: true,
+					command:     []string{"echo", "a"},
+				},
+
+				expected: []prompt.Suggest{
+					{
+						Text: "a",
+					},
+				},
+			},
+			{
+				name: "with command with suggestions with prefix",
+				line: "a",
+				completer: &commandCompletion{
+					disableFile: true,
+					command:     []string{"echo", "abc"},
+				},
+
+				expected: []prompt.Suggest{
+					{
+						Text: "abc",
+					},
+				},
+			},
+			{
+				name: "with command without suggestions without file backup",
+				completer: &commandCompletion{
+					disableFile: true,
+					command:     []string{"echo"},
+				},
+
+				expected: []prompt.Suggest{},
+			},
+			{
+				name: "with command without suggestions with file backup",
+				line: scriptPathWithSuggestions[:len(scriptPathWithSuggestions)-1],
+				completer: &commandCompletion{
+					command: []string{"echo"},
 				},
 
 				expected: []prompt.Suggest{
