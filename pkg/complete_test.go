@@ -35,10 +35,83 @@ func writeScript(dir string, content string) (string, error) {
 
 func TestFileCompleter(t *testing.T) {}
 
-func TestBuiltinCompleter(t *testing.T) {}
+func TestBuiltinCompleter(t *testing.T) {
+	session, err := NewSession("git", OptionInteractive(false))
+	require.NoError(t, err)
+
+	cases := []struct {
+		name string
+		line string
+
+		expected []prompt.Suggest
+	}{
+		{
+			name: "no prefix",
+			line: "!!",
+
+			expected: []prompt.Suggest{
+				{
+					Text:        "!!cd",
+					Description: "change the working directory of the shell",
+				},
+				{
+					Text:        "!!complete",
+					Description: "configure command completion",
+				},
+				{
+					Text:        "!!env",
+					Description: "set or display environment variables for the current session",
+				},
+				{
+					Text:        "!!exit",
+					Description: "exit the shell",
+				},
+				{
+					Text:        "!!help",
+					Description: "view help text",
+				},
+				{
+					Text:        "!!history",
+					Description: "view the history of the shell (pattern should not include the base command)",
+				},
+			},
+		},
+		{
+			name: "with prefix",
+			line: "!!h",
+
+			expected: []prompt.Suggest{
+				{
+					Text:        "!!help",
+					Description: "view help text",
+				},
+				{
+					Text:        "!!history",
+					Description: "view the history of the shell (pattern should not include the base command)",
+				},
+			},
+		},
+		{
+			name: "with no match",
+			line: "!!abc",
+
+			expected: []prompt.Suggest{},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			buff := prompt.NewBuffer()
+			buff.InsertText(c.line, false, true)
+
+			actual := session.builtinsCompleter(*buff.Document())
+
+			assert.Equal(t, c.expected, actual)
+		})
+	}
+}
 
 func TestCommandCompleter(t *testing.T) {
-
 	tmpDir := t.TempDir()
 	scriptPathWithSuggestions := fmt.Sprintf("%s%s%s", tmpDir, string(os.PathSeparator), "complete.sh")
 
@@ -178,8 +251,9 @@ func TestCommandCompleter(t *testing.T) {
 				buff := prompt.NewBuffer()
 				buff.InsertText(c.line, false, true)
 
-				s := c.completer.Complete(*buff.Document())
-				assert.Equal(t, c.expected, s)
+				actual := c.completer.Complete(*buff.Document())
+
+				assert.Equal(t, c.expected, actual)
 			})
 		}
 	})

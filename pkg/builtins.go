@@ -33,45 +33,11 @@ func (s *Session) initBuiltins() {
 		ErrWriter: s.stderr,
 	}
 
-	s.apps["exit"] = &cli.App{
-		Name:        "exit",
-		Usage:       "exit [CODE]",
-		Description: "exit the shell",
-		Action:      s.doExit,
-
-		Reader:    s.stdin,
-		Writer:    s.stdout,
-		ErrWriter: s.stderr,
-	}
-
-	s.apps["help"] = &cli.App{
-		Name:        "help",
-		Usage:       "help",
-		Description: "view help text",
-		Action:      s.doHelp,
-
-		Reader:    s.stdin,
-		Writer:    s.stdout,
-		ErrWriter: s.stderr,
-	}
-
-	s.apps["history"] = &cli.App{
-		Name:        "histroy",
-		Usage:       "history [pattern]",
-		Description: "view the history of the shell (pattern should not inclue the base command)",
-		Action:      s.doHistory,
-		Flags: []cli.Flag{
-			&cli.IntFlag{
-				Name:    "number",
-				Aliases: []string{"n"},
-				Usage:   "limit shown history entries to N (if N is 0, all entries will be shown)",
-			},
-			&cli.BoolFlag{
-				Name:    "show",
-				Aliases: []string{"s"},
-				Usage:   "include the base command in the output",
-			},
-		},
+	s.apps["complete"] = &cli.App{
+		Name:        "complete",
+		Usage:       "complete",
+		Description: "configure command completion",
+		Action:      s.doComplete,
 
 		Reader:    s.stdin,
 		Writer:    s.stdout,
@@ -99,6 +65,51 @@ func (s *Session) initBuiltins() {
 		},
 
 		DefaultCommand: "show",
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
+	}
+
+	s.apps["exit"] = &cli.App{
+		Name:        "exit",
+		Usage:       "exit [CODE]",
+		Description: "exit the shell",
+		Action:      s.doExit,
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
+	}
+
+	s.apps["help"] = &cli.App{
+		Name:        "help",
+		Usage:       "help",
+		Description: "view help text",
+		Action:      s.doHelp,
+
+		Reader:    s.stdin,
+		Writer:    s.stdout,
+		ErrWriter: s.stderr,
+	}
+
+	s.apps["history"] = &cli.App{
+		Name:        "histroy",
+		Usage:       "history [pattern]",
+		Description: "view the history of the shell (pattern should not include the base command)",
+		Action:      s.doHistory,
+		Flags: []cli.Flag{
+			&cli.IntFlag{
+				Name:    "number",
+				Aliases: []string{"n"},
+				Usage:   "limit shown history entries to N (if N is 0, all entries will be shown)",
+			},
+			&cli.BoolFlag{
+				Name:    "show",
+				Aliases: []string{"s"},
+				Usage:   "include the base command in the output",
+			},
+		},
 
 		Reader:    s.stdin,
 		Writer:    s.stdout,
@@ -243,4 +254,8 @@ func (s *Session) doEnv(ctx *cli.Context) error {
 	default:
 		return fmt.Errorf("received unsupported command: %s", ctx.Command.Name)
 	}
+}
+
+func (s *Session) doComplete(ctx *cli.Context) error {
+	panic("nyi")
 }

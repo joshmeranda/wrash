@@ -8,12 +8,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
 	prompt "github.com/joshmeranda/go-prompt"
 	"github.com/samber/lo"
-	"github.com/urfave/cli/v2"
 )
 
 type Completer interface {
@@ -62,14 +62,23 @@ func fileCompleter(doc prompt.Document) []prompt.Suggest {
 }
 
 func (s *Session) builtinsCompleter(doc prompt.Document) []prompt.Suggest {
-	return lo.Filter(lo.MapToSlice(s.apps, func(name string, app *cli.App) prompt.Suggest {
-		return prompt.Suggest{
-			Text:        "!!" + app.Name,
-			Description: app.Description,
+	current := doc.TextBeforeCursor()
+	suggestions := []prompt.Suggest{}
+
+	for name, app := range s.apps {
+		if strings.HasPrefix("!!"+name, current) {
+			suggestions = append(suggestions, prompt.Suggest{
+				Text:        "!!" + name,
+				Description: app.Description,
+			})
 		}
-	}), func(s prompt.Suggest, _ int) bool {
-		return strings.HasPrefix(s.Text, doc.TextBeforeCursor())
+	}
+
+	slices.SortFunc(suggestions, func(left prompt.Suggest, right prompt.Suggest) int {
+		return strings.Compare(left.Text, right.Text)
 	})
+
+	return suggestions
 }
 
 // commandCompletion is the in-memory store for a command commandCompletion.
@@ -77,6 +86,7 @@ func (s *Session) builtinsCompleter(doc prompt.Document) []prompt.Suggest {
 // The configured command is expected to write all possible options to stdout separated by '\n'. If there is an error
 // running the command, or the command exits witha non-zero exit code, a warning is written and returns an empty list
 // of suggestions.
+// todo: support descriptions as well (wil help with completing commits)
 type commandCompletion struct {
 	// disableFile indicates that we should not use the fileCompleter if the given command returns an empty list of
 	// suggetions.
