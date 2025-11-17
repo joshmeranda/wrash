@@ -107,36 +107,10 @@ type commandCompletion struct {
 	// suggetions.
 	disableFile bool
 
-	// path is the path to the executable to run to get suggestions.
-	//
-	// todo: remove path in favor of command (pointless redundancy)
-	path string
-
 	// command is the command to run to get suggestions.
 	command []string
 
 	subcommands map[string]Completer
-}
-
-func NewCompletion(disableFile bool, path string, command []string) (Completer, error) {
-	if path != "" && len(command) != 0 {
-		return nil, fmt.Errorf("path and command are mutually exclusive")
-	} else if path == "" && len(command) == 0 {
-		return nil, fmt.Errorf("one of path and command must be specified")
-	}
-
-	if path != "" {
-		var err error
-		if path, err = exec.LookPath(path); err != nil {
-			return nil, err
-		}
-	}
-
-	return &commandCompletion{
-		disableFile: disableFile,
-		path:        path,
-		command:     command,
-	}, nil
 }
 
 func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {
@@ -171,26 +145,12 @@ func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {
 		}
 	}
 
-	// todo: check if subcommand is being specified (via positional args)
-	// todo: add new commandCompletion for subcommand
-
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*500)
 	defer cancel()
 
 	out := bytes.NewBuffer(nil)
 
-	var cmd *exec.Cmd
-
-	switch {
-	case len(c.command) != 0:
-		cmd = exec.CommandContext(ctx, c.command[0], c.command[1:]...)
-	case c.path != "":
-		cmd = exec.CommandContext(ctx, c.path)
-	default:
-		fmt.Printf("Warning: encountered impossible state: no path or command")
-		return []prompt.Suggest{}
-	}
-
+	cmd := exec.CommandContext(ctx, c.command[0], c.command[1:]...)
 	cmd.Stdout = out
 	cmd.Stderr = io.Discard
 

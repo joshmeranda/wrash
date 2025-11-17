@@ -50,11 +50,6 @@ func (s *Session) initBuiltins() {
 				Usage:   "the command to run to get suggestions",
 				Aliases: []string{"c"},
 			},
-			&cli.StringFlag{
-				Name:    "path",
-				Usage:   "the path to the executable to get suggestions",
-				Aliases: []string{"package"},
-			},
 		},
 
 		Reader:    s.stdin,
@@ -169,7 +164,6 @@ func (s *Session) doComplete(ctx *cli.Context) error {
 	}
 
 	target := argv.First()
-	path := ctx.String("path")
 
 	var command []string
 
@@ -187,12 +181,10 @@ func (s *Session) doComplete(ctx *cli.Context) error {
 		disableFile = true
 	}
 
-	completer, err := NewCompletion(disableFile, path, command)
-	if err != nil {
-		return fmt.Errorf("failed to register completion: %w", err)
+	s.completions[target] = &commandCompletion{
+		disableFile: disableFile,
+		command:     command,
 	}
-
-	s.completions[target] = completer
 
 	return nil
 }
