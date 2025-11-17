@@ -13,6 +13,7 @@ import (
 	"time"
 
 	prompt "github.com/joshmeranda/go-prompt"
+	"github.com/joshmeranda/wrash/pkg/args"
 )
 
 type Completer interface {
@@ -23,6 +24,10 @@ type CompleterFunc func(prompt.Document) []prompt.Suggest
 
 func (cf CompleterFunc) Complete(doc prompt.Document) []prompt.Suggest {
 	return cf(doc)
+}
+
+func emptyCompleter(prompt.Document) []prompt.Suggest {
+	return make([]prompt.Suggest, 0)
 }
 
 // todo: add support for loading completers from a config file
@@ -96,16 +101,21 @@ func (s *Session) builtinsCompleter(doc prompt.Document) []prompt.Suggest {
 // todo: support descriptions as well (wil help with completing commits)
 // todo: add flags
 // todo: add subcommands
+// todo: rename
 type commandCompletion struct {
 	// disableFile indicates that we should not use the fileCompleter if the given command returns an empty list of
 	// suggetions.
 	disableFile bool
 
 	// path is the path to the executable to run to get suggestions.
+	//
+	// todo: remove path in favor of command (pointless redundancy)
 	path string
 
 	// command is the command to run to get suggestions.
 	command []string
+
+	subcommands map[string]Completer
 }
 
 func NewCompletion(disableFile bool, path string, command []string) (Completer, error) {
@@ -130,6 +140,40 @@ func NewCompletion(disableFile bool, path string, command []string) (Completer, 
 }
 
 func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {
+	parsedCmd, err := args.Parse(doc.TextBeforeCursor())
+	if err != nil {
+		fmt.Printf("Warning: failed to parse text before cursor: %s", err)
+	}
+
+	argv := parsedCmd.Args()
+	if len(argv) > 0 {
+		if subcmd, ok := c.subcommands[argv[0]]; ok {
+			next := strings.TrimSpace(doc.Text[len(argv[0]):])
+
+			buffer := prompt.NewBuffer()
+			buffer.InsertText(next, false, true)
+
+			return subcmd.Complete(doc)
+		}
+
+		suggestions := make([]prompt.Suggest, 0, len(c.subcommands))
+		for subcmd := range c.subcommands {
+			if strings.HasPrefix(subcmd, argv[len(argv)-1]) {
+				suggestions = append(suggestions, prompt.Suggest{
+					Text: subcmd,
+				})
+			}
+
+		}
+
+		if len(suggestions) > 0 {
+			return suggestions
+		}
+	}
+
+	// todo: check if subcommand is being specified (via positional args)
+	// todo: add new commandCompletion for subcommand
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*500)
 	defer cancel()
 

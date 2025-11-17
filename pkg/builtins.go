@@ -14,6 +14,7 @@ import (
 )
 
 // todo: we only need to specify each builtin's cli.Apps in, out, and err, or use the Sessions in, out, or err not both
+// todo: I don't like the order of args and flags. We shuold be able to specify args before flags for better readability
 
 func isBuiltin(s string) bool {
 	return strings.HasPrefix(s, "!!")
@@ -45,12 +46,14 @@ func (s *Session) initBuiltins() {
 				Usage: "do not populate suggestions with files if there are no other suggestions",
 			},
 			&cli.StringFlag{
-				Name:  "command",
-				Usage: "the command to run to get suggestions",
+				Name:    "command",
+				Usage:   "the command to run to get suggestions",
+				Aliases: []string{"c"},
 			},
 			&cli.StringFlag{
-				Name:  "path",
-				Usage: "the path to the executable to get suggestions",
+				Name:    "path",
+				Usage:   "the path to the executable to get suggestions",
+				Aliases: []string{"package"},
 			},
 		},
 
@@ -162,7 +165,7 @@ func (s *Session) doComplete(ctx *cli.Context) error {
 	if argv.Len() == 0 {
 		return fmt.Errorf("expected a command, but found none")
 	} else if argv.Len() > 1 {
-		return fmt.Errorf("expected a sinlge command, but found '%d'", argv.Len())
+		return fmt.Errorf("expected a command, but found '%d'", argv.Len())
 	}
 
 	target := argv.First()

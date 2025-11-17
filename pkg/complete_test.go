@@ -295,63 +295,6 @@ func TestCommandCompleter(t *testing.T) {
 			expected []prompt.Suggest
 		}{
 			{
-				name: "with path with suggestion",
-				completer: &commandCompletion{
-					path: scriptPathWithSuggestions,
-				},
-
-				expected: []prompt.Suggest{
-					{
-						Text: "option 1",
-					},
-					{
-						Text: "option 2",
-					},
-					{
-						Text: "last option",
-					},
-				},
-			},
-			{
-				name: "with path with suggestion with prefix",
-				line: "option",
-				completer: &commandCompletion{
-					path: scriptPathWithSuggestions,
-				},
-
-				expected: []prompt.Suggest{
-					{
-						Text: "option 1",
-					},
-					{
-						Text: "option 2",
-					},
-				},
-			},
-			{
-				name: "with path without completions without file backup",
-				completer: &commandCompletion{
-					disableFile: true,
-					path:        "echo",
-				},
-
-				expected: []prompt.Suggest{},
-			},
-			{
-				name: "with path without completions with file backup",
-				line: scriptPathWithSuggestions[:len(scriptPathWithSuggestions)-1],
-				completer: &commandCompletion{
-					path: "echo",
-				},
-
-				expected: []prompt.Suggest{
-					{
-						Text: scriptPathWithSuggestions,
-					},
-				},
-			},
-
-			{
 				name: "with command with suggestions",
 				completer: &commandCompletion{
 					disableFile: true,
@@ -379,24 +322,68 @@ func TestCommandCompleter(t *testing.T) {
 				},
 			},
 			{
-				name: "with command without suggestions without file backup",
+				name: "with path without completions without file backup",
 				completer: &commandCompletion{
 					disableFile: true,
-					command:     []string{"echo"},
+					path:        "echo",
 				},
 
 				expected: []prompt.Suggest{},
 			},
 			{
-				name: "with command without suggestions with file backup",
+				name: "with path without completions with file backup",
 				line: scriptPathWithSuggestions[:len(scriptPathWithSuggestions)-1],
 				completer: &commandCompletion{
-					command: []string{"echo"},
+					path: "echo",
 				},
 
 				expected: []prompt.Suggest{
 					{
 						Text: scriptPathWithSuggestions,
+					},
+				},
+			},
+
+			{
+				name: "with subcommands",
+				line: "a",
+				completer: &commandCompletion{
+					disableFile: true,
+					subcommands: map[string]Completer{
+						"add":    CompleterFunc(emptyCompleter),
+						"access": CompleterFunc(emptyCompleter),
+						"remove": CompleterFunc(emptyCompleter),
+					},
+				},
+
+				expected: []prompt.Suggest{
+					{
+						Text: "add",
+					},
+					{
+						Text: "access",
+					},
+				},
+			},
+			{
+				name: "with subcommand completer",
+				line: "add opt",
+				completer: &commandCompletion{
+					disableFile: true,
+					subcommands: map[string]Completer{
+						"add": &commandCompletion{
+							disableFile: true,
+							command:     []string{scriptPathWithSuggestions},
+						},
+					},
+				},
+
+				expected: []prompt.Suggest{
+					{
+						Text: "option 1",
+					},
+					{
+						Text: "option 2",
 					},
 				},
 			},
