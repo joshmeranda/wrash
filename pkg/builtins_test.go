@@ -72,7 +72,87 @@ func TestCd(t *testing.T) {
 	})
 }
 
-func TestComplete(t *testing.T) {}
+func TestComplete(t *testing.T) {
+	t.Run("complete with command", func(t *testing.T) {
+		session, err := NewSession("foo", OptionInteractive(false))
+		require.NoError(t, err)
+
+		err = session.apps["complete"].Run([]string{"!!complete", "-c", "bar", "foo"})
+		assert.NoError(t, err)
+
+		actual := session.completions["foo"]
+
+		assert.Equal(t, &commandCompletion{
+			command:     []string{"bar"},
+			subcommands: make(map[string]*commandCompletion),
+		}, actual)
+	})
+
+	t.Run("complete with files disabled", func(t *testing.T) {
+		session, err := NewSession("foo", OptionInteractive(false))
+		require.NoError(t, err)
+
+		err = session.apps["complete"].Run([]string{"!!complete", "-d", "foo"})
+		assert.NoError(t, err)
+
+		actual := session.completions["foo"]
+
+		assert.Equal(t, &commandCompletion{
+			disableFile: true,
+			subcommands: make(map[string]*commandCompletion),
+		}, actual)
+	})
+
+	t.Run("complete subcommand with command", func(t *testing.T) {
+		session, err := NewSession("foo", OptionInteractive(false))
+		require.NoError(t, err)
+
+		err = session.apps["complete"].Run([]string{"!!complete", "-c", "baz", "foo", "bar"})
+		assert.NoError(t, err)
+
+		actual := session.completions["foo"]
+
+		assert.Equal(t, &commandCompletion{
+			subcommands: map[string]*commandCompletion{
+				"bar": {
+					command:     []string{"baz"},
+					subcommands: make(map[string]*commandCompletion),
+				},
+			},
+		}, actual)
+	})
+
+	t.Run("complete subcommand without file", func(t *testing.T) {
+		session, err := NewSession("foo", OptionInteractive(false))
+		require.NoError(t, err)
+
+		err = session.apps["complete"].Run([]string{"!!complete", "-d", "foo", "bar"})
+		assert.NoError(t, err)
+
+		actual := session.completions["foo"]
+
+		assert.Equal(t, &commandCompletion{
+			subcommands: map[string]*commandCompletion{
+				"bar": {
+					disableFile: true,
+					subcommands: make(map[string]*commandCompletion),
+				},
+			},
+		}, actual)
+	})
+
+	t.Run("missing command", func(t *testing.T) {
+
+		session, err := NewSession("foo", OptionInteractive(false))
+		require.NoError(t, err)
+
+		err = session.apps["complete"].Run([]string{"!!complete"})
+		assert.EqualError(t, err, "expected a command, but found none")
+
+		_, ok := session.completions["foo"]
+		assert.False(t, ok)
+	})
+}
 
 func TestEnv(t *testing.T) {
 	t.Run("Ok", func(t *testing.T) {

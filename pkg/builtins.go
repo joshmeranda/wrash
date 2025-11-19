@@ -42,8 +42,9 @@ func (s *Session) initBuiltins() {
 		Action:      s.doComplete,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
-				Name:  "disable-file",
-				Usage: "do not populate suggestions with files if there are no other suggestions",
+				Name:    "disable-file",
+				Usage:   "do not populate suggestions with files if there are no other suggestions",
+				Aliases: []string{"d"},
 			},
 			&cli.StringFlag{
 				Name:    "command",
@@ -155,15 +156,11 @@ func (s *Session) doCd(ctx *cli.Context) error {
 }
 
 func (s *Session) doComplete(ctx *cli.Context) error {
-	argv := ctx.Args()
+	argv := ctx.Args().Slice()
 
-	if argv.Len() == 0 {
+	if len(argv) == 0 {
 		return fmt.Errorf("expected a command, but found none")
-	} else if argv.Len() > 1 {
-		return fmt.Errorf("expected a command, but found '%d'", argv.Len())
 	}
-
-	target := argv.First()
 
 	var command []string
 
@@ -177,14 +174,35 @@ func (s *Session) doComplete(ctx *cli.Context) error {
 	}
 
 	var disableFile bool
-	if ctx.Bool("dissable-flag") {
+	if ctx.Bool("disable-file") {
 		disableFile = true
 	}
 
-	s.completions[target] = &commandCompletion{
-		disableFile: disableFile,
-		command:     command,
+	completion, ok := s.completions[argv[0]]
+	if !ok {
+		completion = &commandCompletion{
+			subcommands: make(map[string]*commandCompletion),
+		}
+		s.completions[argv[0]] = completion
 	}
+
+	og := completion
+	_ = og
+
+	for _, subcmd := range argv[1:] {
+		subCompletion, ok := completion.subcommands[subcmd]
+		if !ok {
+			subCompletion = &commandCompletion{
+				subcommands: make(map[string]*commandCompletion),
+			}
+			completion.subcommands[subcmd] = subCompletion
+		}
+
+		completion = subCompletion
+	}
+
+	completion.disableFile = disableFile
+	completion.command = command
 
 	return nil
 }
