@@ -39,7 +39,12 @@ func run(ctx *cli.Context) error {
 
 	historyPath, err := GetHistoryFile()
 	if err != nil {
-		return err
+		return fmt.Errorf("could not determine history file: %w", err)
+	}
+
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return fmt.Errorf("cocould not determine config dir: %w", err)
 	}
 
 	entries, err := loadHistoryEntries(historyPath)
@@ -52,6 +57,7 @@ func run(ctx *cli.Context) error {
 	session, err := wrash.NewSession(rawBase,
 		wrash.OptionHistory(history),
 		wrash.OptionEnvironment(env),
+		wrash.OptionConfigDir(configDir),
 	)
 	if err != nil {
 		return err

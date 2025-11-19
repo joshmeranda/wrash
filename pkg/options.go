@@ -57,3 +57,10 @@ func OptionEnvironment(env map[string]string) Option {
 		return nil
 	}
 }
+
+func OptionConfigDir(configDir string) Option {
+	return func(s *Session) error {
+		s.configDir = configDir
+		return nil
+	}
+}
