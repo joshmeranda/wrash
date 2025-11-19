@@ -26,10 +26,6 @@ func (cf CompleterFunc) Complete(doc prompt.Document) []prompt.Suggest {
 	return cf(doc)
 }
 
-func emptyCompleter(prompt.Document) []prompt.Suggest {
-	return make([]prompt.Suggest, 0)
-}
-
 // todo: add support for loading completers from a config file
 
 // todo: ideally we'd be able to show the completions with only the basenames (prompt.Suggeestion previews)
@@ -113,7 +109,50 @@ type commandCompletion struct {
 	subcommands map[string]*commandCompletion
 }
 
+func (c *commandCompletion) doCommand(doc prompt.Document) []prompt.Suggest {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*500)
+	defer cancel()
+
+	out := bytes.NewBuffer(nil)
+	cmd := exec.CommandContext(ctx, c.command[0], c.command[1:]...)
+	cmd.Stdout = out
+	cmd.Stderr = io.Discard
+
+	if err := cmd.Run(); err != nil {
+		// todo: add a system logger
+		fmt.Printf("Warning: failed to run complete: %s\n", err)
+	} else if n := cmd.ProcessState.ExitCode(); n != 0 {
+		fmt.Printf("Warning: failed with code %d\n", n)
+	}
+
+	lines := [][]byte{}
+	if raw := bytes.TrimSpace(out.Bytes()); len(raw) > 0 {
+		lines = bytes.Split(raw, []byte{'\n'})
+	}
+
+	prefix := []byte(doc.GetWordBeforeCursor())
+
+	suggestions := []prompt.Suggest{}
+	for _, line := range lines {
+		if bytes.HasPrefix(line, prefix) {
+			suggestions = append(suggestions, prompt.Suggest{
+				Text: string(line),
+			})
+		}
+	}
+
+	if len(suggestions) == 0 && !c.disableFile {
+		return fileCompleter(doc)
+	}
+
+	return suggestions
+}
+
 func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {
+	if doc.TextBeforeCursor() == "" {
+		return []prompt.Suggest{}
+	}
+
 	parsedCmd, err := args.Parse(doc.TextBeforeCursor())
 	if err != nil {
 		fmt.Printf("Warning: failed to parse text before cursor: %s", err)
@@ -149,42 +188,9 @@ func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*500)
-	defer cancel()
-
-	out := bytes.NewBuffer(nil)
-
-	cmd := exec.CommandContext(ctx, c.command[0], c.command[1:]...)
-	cmd.Stdout = out
-	cmd.Stderr = io.Discard
-
-	if err := cmd.Run(); err != nil {
-		// todo: add a system logger
-		fmt.Printf("Warning: failed to run complete: %s\n", err)
-	} else if n := cmd.ProcessState.ExitCode(); n != 0 {
-		fmt.Printf("Warning: failed with code %d\n", n)
+	if len(c.command) > 0 {
+		return c.doCommand(doc)
 	}
 
-	// todo: might be worth doing this in a streaming type of way
-	lines := [][]byte{}
-	if raw := bytes.TrimSpace(out.Bytes()); len(raw) > 0 {
-		lines = bytes.Split(raw, []byte{'\n'})
-	}
-
-	prefix := []byte(doc.GetWordBeforeCursor())
-
-	suggestions := []prompt.Suggest{}
-	for _, line := range lines {
-		if bytes.HasPrefix(line, prefix) {
-			suggestions = append(suggestions, prompt.Suggest{
-				Text: string(line),
-			})
-		}
-	}
-
-	if len(suggestions) == 0 && !c.disableFile {
-		return fileCompleter(doc)
-	}
-
-	return suggestions
+	return []prompt.Suggest{}
 }

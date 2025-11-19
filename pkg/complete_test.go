@@ -303,6 +303,16 @@ func TestCommandCompleter(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "with subcommand with empty line",
+			line: "",
+			completer: &commandCompletion{
+				subcommands: map[string]*commandCompletion{
+					"bar": {},
+				},
+			},
+			expected: []prompt.Suggest{},
+		},
 	}
 
 	for _, c := range cases {
