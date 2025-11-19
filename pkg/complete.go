@@ -155,7 +155,8 @@ func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {
 
 	parsedCmd, err := args.Parse(doc.TextBeforeCursor())
 	if err != nil {
-		fmt.Printf("Warning: failed to parse text before cursor: %s", err)
+		// fmt.Printf("Warning: failed to parse text before cursor: %s", err)
+		return []prompt.Suggest{}
 	}
 
 	argv := parsedCmd.Args()
