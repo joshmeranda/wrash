@@ -1,10 +1,12 @@
 package wrash
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"unicode"
 
@@ -16,6 +18,8 @@ import (
 
 const (
 	runeset = "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?_"
+
+	completionsDir = "completions"
 )
 
 // todo: this should support changing cases as well as just whitespaces
@@ -71,12 +75,13 @@ type Session struct {
 
 	environ     map[string]string
 	completions map[string]Completer
+	configDir   string
 
 	history          *history
 	exitCalled       bool
 	previousExitCode int
 	apps             map[string]*cli.App
-	isFrozen         bool
+	isFrozen         bool // todo: is never used
 }
 
 func NewSession(base string, opts ...Option) (*Session, error) {
@@ -97,6 +102,10 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 		if err := opt(session); err != nil {
 			return nil, fmt.Errorf("error applying option: %w", err)
 		}
+	}
+
+	if err := session.loadCompletions(); err != nil {
+		return nil, fmt.Errorf("failed to load completions: %w", err)
 	}
 
 	if session.history == nil {
@@ -128,6 +137,63 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 	}
 
 	return session, nil
+}
+
+func (s *Session) runFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	scanner := bufio.NewScanner(f)
+
+	for n := 1; scanner.Scan(); n++ {
+		line := scanner.Text()
+
+		cmd, err := args.Parse(line)
+		if err != nil {
+			return fmt.Errorf("could not parse line %d: %s", n, err)
+		}
+
+		expanded, err := cmd.Expand(func(key string) string {
+			return s.environ[key]
+		})
+		if err != nil {
+			return fmt.Errorf("could not expand line: %w", err)
+		}
+
+		app, found := s.apps[expanded[0]]
+		if !found {
+			return fmt.Errorf("found unkown builtin '%s' on line %d", expanded[0], n)
+		}
+
+		if err := app.Run(expanded); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *Session) loadCompletions() error {
+	dir := filepath.Join(s.configDir, completionsDir)
+
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("error loading completions: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.Type().IsRegular() {
+			if err := s.runFile(filepath.Join(dir, entry.Name())); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *Session) executor(str string) {
