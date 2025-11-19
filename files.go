@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path"
+	"path/filepath"
 )
 
 const (
@@ -33,5 +34,5 @@ func GetConfigDir() (string, error) {
 		return "", err
 	}
 
-	return dir, nil
+	return filepath.Join(dir, "wrash"), nil
 }

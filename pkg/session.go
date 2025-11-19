@@ -104,6 +104,8 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 		}
 	}
 
+	session.initBuiltins()
+
 	if err := session.loadCompletions(); err != nil {
 		return nil, fmt.Errorf("failed to load completions: %w", err)
 	}
@@ -111,8 +113,6 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 	if session.history == nil {
 		session.history = NewHistory(base, io.Discard, make([]*Entry, 0)).(*history)
 	}
-
-	session.initBuiltins()
 
 	if session.interactive {
 		session.prompt = prompt.New(session.executor, session.completer,
@@ -148,7 +148,11 @@ func (s *Session) runFile(path string) error {
 	scanner := bufio.NewScanner(f)
 
 	for n := 1; scanner.Scan(); n++ {
-		line := scanner.Text()
+		line := strings.TrimSpace(scanner.Text())
+
+		if line == "" {
+			continue
+		}
 
 		cmd, err := args.Parse(line)
 		if err != nil {
@@ -188,7 +192,7 @@ func (s *Session) loadCompletions() error {
 	for _, entry := range entries {
 		if entry.Type().IsRegular() {
 			if err := s.runFile(filepath.Join(dir, entry.Name())); err != nil {
-				return err
+				return fmt.Errorf("failed to load '%s': %w", filepath.Join(dir, entry.Name()), err)
 			}
 		}
 	}
