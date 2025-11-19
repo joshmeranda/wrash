@@ -74,7 +74,7 @@ type Session struct {
 	interactive bool // useful for disable tty requirement for testing
 
 	environ     map[string]string
-	completions map[string]*commandCompletion
+	completions map[string]*commandCompleter
 	configDir   string
 
 	history          *history
@@ -89,7 +89,7 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 		Base: base,
 
 		environ:     make(map[string]string),
-		completions: make(map[string]*commandCompletion),
+		completions: make(map[string]*commandCompleter),
 
 		interactive: true,
 

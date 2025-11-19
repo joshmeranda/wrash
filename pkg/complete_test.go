@@ -212,7 +212,7 @@ func TestCommandCompleter(t *testing.T) {
 	}{
 		{
 			name: "with empty line",
-			completer: &commandCompletion{
+			completer: &commandCompleter{
 				command: []string{"printf", "abc\ndef"},
 			},
 
@@ -221,7 +221,7 @@ func TestCommandCompleter(t *testing.T) {
 		{
 			name: "with command with suggestions with prefix",
 			line: "a",
-			completer: &commandCompletion{
+			completer: &commandCompleter{
 				disableFile: true,
 				command:     []string{"printf", "abc\ndef"},
 			},
@@ -234,7 +234,7 @@ func TestCommandCompleter(t *testing.T) {
 		},
 		{
 			name: "with path without completions without file backup",
-			completer: &commandCompletion{
+			completer: &commandCompleter{
 				disableFile: true,
 				command:     []string{"echo"},
 			},
@@ -244,7 +244,7 @@ func TestCommandCompleter(t *testing.T) {
 		{
 			name: "with path without completions with file backup",
 			line: scriptPathWithSuggestions[:len(scriptPathWithSuggestions)-1],
-			completer: &commandCompletion{
+			completer: &commandCompleter{
 				command: []string{"echo"},
 			},
 
@@ -257,9 +257,9 @@ func TestCommandCompleter(t *testing.T) {
 		{
 			name: "with subcommands",
 			line: "a",
-			completer: &commandCompletion{
+			completer: &commandCompleter{
 				disableFile: true,
-				subcommands: map[string]*commandCompletion{
+				subcommands: map[string]*commandCompleter{
 					"add":    {disableFile: true},
 					"access": {disableFile: true},
 					"remove": {disableFile: true},
@@ -278,9 +278,9 @@ func TestCommandCompleter(t *testing.T) {
 		{
 			name: "with subcommand completer",
 			line: "add opt",
-			completer: &commandCompletion{
+			completer: &commandCompleter{
 				disableFile: true,
-				subcommands: map[string]*commandCompletion{
+				subcommands: map[string]*commandCompleter{
 					"add": {
 						disableFile: true,
 						command:     []string{scriptPathWithSuggestions},
@@ -300,8 +300,8 @@ func TestCommandCompleter(t *testing.T) {
 		{
 			name: "with subcommand with empty line",
 			line: "",
-			completer: &commandCompletion{
-				subcommands: map[string]*commandCompletion{
+			completer: &commandCompleter{
+				subcommands: map[string]*commandCompleter{
 					"bar": {},
 				},
 			},

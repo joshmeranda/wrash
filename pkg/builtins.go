@@ -180,8 +180,8 @@ func (s *Session) doComplete(ctx *cli.Context) error {
 
 	completion, ok := s.completions[argv[0]]
 	if !ok {
-		completion = &commandCompletion{
-			subcommands: make(map[string]*commandCompletion),
+		completion = &commandCompleter{
+			subcommands: make(map[string]*commandCompleter),
 		}
 		s.completions[argv[0]] = completion
 	}
@@ -192,8 +192,8 @@ func (s *Session) doComplete(ctx *cli.Context) error {
 	for _, subcmd := range argv[1:] {
 		subCompletion, ok := completion.subcommands[subcmd]
 		if !ok {
-			subCompletion = &commandCompletion{
-				subcommands: make(map[string]*commandCompletion),
+			subCompletion = &commandCompleter{
+				subcommands: make(map[string]*commandCompleter),
 			}
 			completion.subcommands[subcmd] = subCompletion
 		}

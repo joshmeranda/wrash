@@ -26,8 +26,6 @@ func (cf CompleterFunc) Complete(doc prompt.Document) []prompt.Suggest {
 	return cf(doc)
 }
 
-// todo: add support for loading completers from a config file
-
 // todo: ideally we'd be able to show the completions with only the basenames (prompt.Suggeestion previews)
 // todo: don't cleanup the './' in the path
 func getFilesWithPrefix(prefix string) []prompt.Suggest {
@@ -89,16 +87,15 @@ func (s *Session) builtinsCompleter(doc prompt.Document) []prompt.Suggest {
 	return suggestions
 }
 
-// commandCompletion is the in-memory store for a command commandCompletion.
+// commandCompleter is the in-memory store for a command commandCompleter.
 //
 // The configured command is expected to write all possible options to stdout separated by '\n'. If there is an error
 // running the command, or the command exits witha non-zero exit code, a warning is written and returns an empty list
 // of suggestions.
 // todo: support descriptions as well (wil help with completing commits)
 // todo: add flags
-// todo: add subcommands
 // todo: rename
-type commandCompletion struct {
+type commandCompleter struct {
 	// disableFile indicates that we should not use the fileCompleter if the given command returns an empty list of
 	// suggetions.
 	disableFile bool
@@ -106,10 +103,10 @@ type commandCompletion struct {
 	// command is the command to run to get suggestions.
 	command []string
 
-	subcommands map[string]*commandCompletion
+	subcommands map[string]*commandCompleter
 }
 
-func (c *commandCompletion) doCommand(doc prompt.Document) []prompt.Suggest {
+func (c *commandCompleter) doCommand(doc prompt.Document) []prompt.Suggest {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*500)
 	defer cancel()
 
@@ -148,7 +145,7 @@ func (c *commandCompletion) doCommand(doc prompt.Document) []prompt.Suggest {
 	return suggestions
 }
 
-func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {
+func (c *commandCompleter) Complete(doc prompt.Document) []prompt.Suggest {
 	if doc.TextBeforeCursor() == "" {
 		return []prompt.Suggest{}
 	}

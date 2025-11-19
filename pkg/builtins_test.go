@@ -82,9 +82,9 @@ func TestComplete(t *testing.T) {
 
 		actual := session.completions["foo"]
 
-		assert.Equal(t, &commandCompletion{
+		assert.Equal(t, &commandCompleter{
 			command:     []string{"bar"},
-			subcommands: make(map[string]*commandCompletion),
+			subcommands: make(map[string]*commandCompleter),
 		}, actual)
 	})
 
@@ -97,9 +97,9 @@ func TestComplete(t *testing.T) {
 
 		actual := session.completions["foo"]
 
-		assert.Equal(t, &commandCompletion{
+		assert.Equal(t, &commandCompleter{
 			disableFile: true,
-			subcommands: make(map[string]*commandCompletion),
+			subcommands: make(map[string]*commandCompleter),
 		}, actual)
 	})
 
@@ -112,11 +112,11 @@ func TestComplete(t *testing.T) {
 
 		actual := session.completions["foo"]
 
-		assert.Equal(t, &commandCompletion{
-			subcommands: map[string]*commandCompletion{
+		assert.Equal(t, &commandCompleter{
+			subcommands: map[string]*commandCompleter{
 				"bar": {
 					command:     []string{"baz"},
-					subcommands: make(map[string]*commandCompletion),
+					subcommands: make(map[string]*commandCompleter),
 				},
 			},
 		}, actual)
@@ -131,11 +131,11 @@ func TestComplete(t *testing.T) {
 
 		actual := session.completions["foo"]
 
-		assert.Equal(t, &commandCompletion{
-			subcommands: map[string]*commandCompletion{
+		assert.Equal(t, &commandCompleter{
+			subcommands: map[string]*commandCompleter{
 				"bar": {
 					disableFile: true,
-					subcommands: make(map[string]*commandCompletion),
+					subcommands: make(map[string]*commandCompleter),
 				},
 			},
 		}, actual)
