@@ -74,7 +74,7 @@ type Session struct {
 	interactive bool // useful for disable tty requirement for testing
 
 	environ     map[string]string
-	completions map[string]Completer
+	completions map[string]*commandCompletion
 	configDir   string
 
 	history          *history
@@ -89,7 +89,7 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 		Base: base,
 
 		environ:     make(map[string]string),
-		completions: make(map[string]Completer),
+		completions: make(map[string]*commandCompletion),
 
 		interactive: true,
 
@@ -257,6 +257,8 @@ func (s *Session) livePrefix() (string, bool) {
 }
 
 func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
+	var completer Completer
+
 	completer, ok := s.completions[s.Base]
 
 	if !ok {

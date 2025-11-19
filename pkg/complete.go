@@ -110,7 +110,7 @@ type commandCompletion struct {
 	// command is the command to run to get suggestions.
 	command []string
 
-	subcommands map[string]Completer
+	subcommands map[string]*commandCompletion
 }
 
 func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {

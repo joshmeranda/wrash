@@ -265,10 +265,10 @@ func TestCommandCompleter(t *testing.T) {
 			line: "a",
 			completer: &commandCompletion{
 				disableFile: true,
-				subcommands: map[string]Completer{
-					"add":    CompleterFunc(emptyCompleter),
-					"access": CompleterFunc(emptyCompleter),
-					"remove": CompleterFunc(emptyCompleter),
+				subcommands: map[string]*commandCompletion{
+					"add":    {disableFile: true},
+					"access": {disableFile: true},
+					"remove": {disableFile: true},
 				},
 			},
 
@@ -286,8 +286,8 @@ func TestCommandCompleter(t *testing.T) {
 			line: "add opt",
 			completer: &commandCompletion{
 				disableFile: true,
-				subcommands: map[string]Completer{
-					"add": &commandCompletion{
+				subcommands: map[string]*commandCompletion{
+					"add": {
 						disableFile: true,
 						command:     []string{scriptPathWithSuggestions},
 					},
