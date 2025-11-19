@@ -141,6 +141,10 @@ func (c *commandCompletion) Complete(doc prompt.Document) []prompt.Suggest {
 		}
 
 		if len(suggestions) > 0 {
+			slices.SortFunc(suggestions, func(left prompt.Suggest, right prompt.Suggest) int {
+				return strings.Compare(left.Text, right.Text)
+			})
+
 			return suggestions
 		}
 	}

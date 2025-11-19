@@ -274,10 +274,10 @@ func TestCommandCompleter(t *testing.T) {
 
 			expected: []prompt.Suggest{
 				{
-					Text: "add",
+					Text: "access",
 				},
 				{
-					Text: "access",
+					Text: "add",
 				},
 			},
 		},
