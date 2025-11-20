@@ -1,0 +1,41 @@
+complete -d git clone
+
+complete -d git init
+
+complete -d -c 'git diff --name-only --diff-filter=ACDMRT\*' git add
+
+complete git mv
+
+complete git restore
+
+complete git rm
+
+complete -d git diff
+
+complete -d git grep
+
+complete -d git log
+
+complete -d git show
+
+complete -d git status
+
+complete -d git branch
+
+complete -d git commit
+
+complete -d git merge
+
+complete -d -c 'git branch --format %(refname:short)' git rebase
+
+complete -d git reset
+
+complete -d -c 'git branch --format %(refname:short)' git switch
+
+complete -d git tag
+
+complete -d git fetch
+
+complete -d git pull
+
+complete -d git push
