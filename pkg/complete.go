@@ -87,6 +87,10 @@ func (s *Session) builtinsCompleter(doc prompt.Document) []prompt.Suggest {
 	return suggestions
 }
 
+const (
+	EnvCompletePrompt = "WRASH_PROMPT"
+)
+
 // commandCompleter is the in-memory store for a command commandCompleter.
 //
 // The configured command is expected to write all possible options to stdout separated by '\n'. If there is an error
@@ -112,6 +116,7 @@ func (c *commandCompleter) doCommand(doc prompt.Document) []prompt.Suggest {
 
 	out := bytes.NewBuffer(nil)
 	cmd := exec.CommandContext(ctx, c.command[0], c.command[1:]...)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", EnvCompletePrompt, doc.TextBeforeCursor()))
 	cmd.Stdout = out
 	cmd.Stderr = io.Discard
 

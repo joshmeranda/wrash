@@ -307,6 +307,19 @@ func TestCommandCompleter(t *testing.T) {
 			},
 			expected: []prompt.Suggest{},
 		},
+		{
+			name: "prompt passed to command via env",
+			line: "abc def 'ghi'",
+			completer: &commandCompleter{
+				command: []string{"echo", "$" + EnvCompletePrompt},
+			},
+
+			expected: []prompt.Suggest{
+				{
+					Text: "abc def 'ghi'",
+				},
+			},
+		},
 	}
 
 	for _, c := range cases {
