@@ -143,10 +143,6 @@ func (c *commandCompleter) doCommand(doc prompt.Document) []prompt.Suggest {
 		}
 	}
 
-	if len(suggestions) == 0 && !c.disableFile {
-		return fileCompleter(doc)
-	}
-
 	return suggestions
 }
 
@@ -191,9 +187,15 @@ func (c *commandCompleter) Complete(doc prompt.Document) []prompt.Suggest {
 		}
 	}
 
+	var suggestions []prompt.Suggest
+
 	if len(c.command) > 0 {
-		return c.doCommand(doc)
+		suggestions = c.doCommand(doc)
 	}
 
-	return []prompt.Suggest{}
+	if len(suggestions) == 0 && !c.disableFile {
+		suggestions = fileCompleter(doc)
+	}
+
+	return suggestions
 }
