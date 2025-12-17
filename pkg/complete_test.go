@@ -81,8 +81,7 @@ func TestFileCompleter(t *testing.T) {
 
 			expected: []prompt.Suggest{
 				{
-					// todo: this should really be "./options.go"
-					Text: "options.go",
+					Text: "./options.go",
 				},
 			},
 		},

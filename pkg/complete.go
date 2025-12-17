@@ -27,7 +27,6 @@ func (cf CompleterFunc) Complete(doc prompt.Document) []prompt.Suggest {
 }
 
 // todo: ideally we'd be able to show the completions with only the basenames (prompt.Suggeestion previews)
-// todo: don't cleanup the './' in the path
 func getFilesWithPrefix(prefix string) []prompt.Suggest {
 	if prefix == "" {
 		return []prompt.Suggest{}
@@ -49,6 +48,12 @@ func getFilesWithPrefix(prefix string) []prompt.Suggest {
 
 		if info.IsDir() {
 			p += "/"
+		}
+
+		// filepath.Glob cleans the path of any '.' components. Dropping the './' from the start of a path could change
+		// how the underlying program will handle them ("apt install file.deb" vs "apt instal ./file.deb")
+		if strings.HasPrefix(prefix, "./") {
+			p = "./" + p
 		}
 
 		suggestions = append(suggestions, prompt.Suggest{
