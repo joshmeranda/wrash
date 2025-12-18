@@ -64,6 +64,7 @@ func goPreviousBoundary(buff *prompt.Buffer) {
 	buff.CursorLeft(boundary)
 }
 
+// todo: add session id
 type Session struct {
 	Base string
 
@@ -298,10 +299,22 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 
 func (s *Session) Run() {
 	defer func() {
+		if err := recover(); err != nil {
+			s.logger.Error("", "err", err)
+		}
+
 		if err := s.history.Sync(); err != nil {
 			s.logger.Error("could not sync history", "err", err)
+		} else {
+			s.logger.Info("synced history")
 		}
 	}()
+
+	s.logger.Info("staring new Wrash session...",
+		"interactive", s.interactive,
+		"configDir", s.configDir,
+		// todo: log history file
+	)
 
 	s.prompt.Run()
 }
