@@ -47,6 +47,11 @@ func run(ctx *cli.Context) error {
 		return fmt.Errorf("cocould not determine config dir: %w", err)
 	}
 
+	logFile, err := GetLogFile()
+	if err != nil {
+		return fmt.Errorf("could not determine log file: %w", err)
+	}
+
 	entries, err := loadHistoryEntries(historyPath)
 	if err != nil {
 		return err
@@ -58,6 +63,7 @@ func run(ctx *cli.Context) error {
 		wrash.OptionHistory(history),
 		wrash.OptionEnvironment(env),
 		wrash.OptionConfigDir(configDir),
+		wrash.OptionLogFile(logFile),
 	)
 	if err != nil {
 		return err
