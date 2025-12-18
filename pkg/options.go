@@ -70,14 +70,13 @@ func OptionConfigDir(configDir string) Option {
 
 func OptionLogFile(logFile string) Option {
 	return func(s *Session) error {
-		out, err := os.Open(logFile)
+		out, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 		if err != nil {
-			return fmt.Errorf("could not open log level: %w", err)
+			return fmt.Errorf("failed to open= log file: %w", err)
 		}
 
 		s.logger = slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{
-			AddSource: true,
-			Level:     slog.LevelError,
+			Level: slog.LevelDebug,
 		}))
 		return nil
 	}
