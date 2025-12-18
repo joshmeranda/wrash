@@ -3,6 +3,7 @@ package wrash
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,33 +18,32 @@ import (
 )
 
 type Completer interface {
-	Complete(prompt.Document) []prompt.Suggest
+	Complete(prompt.Document) ([]prompt.Suggest, error)
 }
 
-type CompleterFunc func(prompt.Document) []prompt.Suggest
+type CompleterFunc func(prompt.Document) ([]prompt.Suggest, error)
 
-func (cf CompleterFunc) Complete(doc prompt.Document) []prompt.Suggest {
+func (cf CompleterFunc) Complete(doc prompt.Document) ([]prompt.Suggest, error) {
 	return cf(doc)
 }
 
 // todo: ideally we'd be able to show the completions with only the basenames (prompt.Suggeestion previews)
-func getFilesWithPrefix(prefix string) []prompt.Suggest {
+func getFilesWithPrefix(prefix string) ([]prompt.Suggest, error) {
 	if prefix == "" {
-		return []prompt.Suggest{}
+		return []prompt.Suggest{}, nil
 	}
 
 	paths, err := filepath.Glob(prefix + "*")
 	if err != nil {
-		return []prompt.Suggest{}
+		return []prompt.Suggest{}, nil
 	}
 
 	suggestions := make([]prompt.Suggest, 0, len(paths))
 
 	for _, p := range paths {
-		info, err := os.Stat(p)
-		if err != nil {
-			fmt.Printf("Warning: failed to stat file '%s'\n", p)
-			return nil
+		info, statErr := os.Stat(p)
+		if statErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to state path '%s': %w", p, err))
 		}
 
 		if info.IsDir() {
@@ -65,14 +65,14 @@ func getFilesWithPrefix(prefix string) []prompt.Suggest {
 		return strings.Compare(left.Text, right.Text)
 	})
 
-	return suggestions
+	return suggestions, nil
 }
 
-func fileCompleter(doc prompt.Document) []prompt.Suggest {
+func fileCompleter(doc prompt.Document) ([]prompt.Suggest, error) {
 	return getFilesWithPrefix(doc.GetWordBeforeCursor())
 }
 
-func (s *Session) builtinsCompleter(doc prompt.Document) []prompt.Suggest {
+func (s *Session) builtinsCompleter(doc prompt.Document) ([]prompt.Suggest, error) {
 	current := doc.TextBeforeCursor()
 	suggestions := []prompt.Suggest{}
 
@@ -89,7 +89,7 @@ func (s *Session) builtinsCompleter(doc prompt.Document) []prompt.Suggest {
 		return strings.Compare(left.Text, right.Text)
 	})
 
-	return suggestions
+	return suggestions, nil
 }
 
 const (
@@ -151,15 +151,15 @@ func (c *commandCompleter) doCommand(doc prompt.Document) []prompt.Suggest {
 	return suggestions
 }
 
-func (c *commandCompleter) Complete(doc prompt.Document) []prompt.Suggest {
+func (c *commandCompleter) Complete(doc prompt.Document) ([]prompt.Suggest, error) {
 	if doc.TextBeforeCursor() == "" {
-		return []prompt.Suggest{}
+		return []prompt.Suggest{}, nil
 	}
 
 	parsedCmd, err := args.Parse(doc.TextBeforeCursor())
 	if err != nil {
-		// fmt.Printf("Warning: failed to parse text before cursor: %s", err)
-		return []prompt.Suggest{}
+		// todo: this will likely produce a lot of noise in the log file (we shuold ignoer this error when logging)
+		return []prompt.Suggest{}, fmt.Errorf("failed to parse before cursor: %s", err)
 	}
 
 	argv := parsedCmd.Args()
@@ -188,7 +188,7 @@ func (c *commandCompleter) Complete(doc prompt.Document) []prompt.Suggest {
 				return strings.Compare(left.Text, right.Text)
 			})
 
-			return suggestions
+			return suggestions, nil
 		}
 	}
 
@@ -199,8 +199,8 @@ func (c *commandCompleter) Complete(doc prompt.Document) []prompt.Suggest {
 	}
 
 	if len(suggestions) == 0 && !c.disableFile {
-		suggestions = fileCompleter(doc)
+		suggestions, err = fileCompleter(doc)
 	}
 
-	return suggestions
+	return suggestions, err
 }

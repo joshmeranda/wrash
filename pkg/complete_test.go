@@ -108,7 +108,8 @@ func TestFileCompleter(t *testing.T) {
 			buff := prompt.NewBuffer()
 			buff.InsertText(c.line, false, true)
 
-			actual := fileCompleter(*buff.Document())
+			actual, err := fileCompleter(*buff.Document())
+			assert.NoError(t, err)
 
 			assert.Equal(t, c.expected, actual)
 		})
@@ -184,7 +185,8 @@ func TestBuiltinCompleter(t *testing.T) {
 			buff := prompt.NewBuffer()
 			buff.InsertText(c.line, false, true)
 
-			actual := session.builtinsCompleter(*buff.Document())
+			actual, err := session.builtinsCompleter(*buff.Document())
+			assert.NoError(t, err)
 
 			assert.Equal(t, c.expected, actual)
 		})
@@ -208,6 +210,7 @@ func TestCommandCompleter(t *testing.T) {
 		completer Completer
 
 		expected []prompt.Suggest
+		err      string
 	}{
 		{
 			name: "with empty line",
@@ -319,20 +322,32 @@ func TestCommandCompleter(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "with parse error",
+			line: "echo 'unterminated single-quote",
+			completer: &commandCompleter{
+				command: []string{scriptPathWithSuggestions},
+			},
+
+			expected: make([]prompt.Suggest, 0),
+			err:      "failed to parse before cursor: unexpected EOF: unterminated sequence: ' ... '",
+		},
 	}
 
 	for _, c := range cases {
-		if c.name != "with command with suggestions" {
-			continue
-		}
-
 		t.Run(c.name, func(t *testing.T) {
 			buff := prompt.NewBuffer()
 			buff.InsertText(c.line, false, true)
 
-			actual := c.completer.Complete(*buff.Document())
+			actual, err := c.completer.Complete(*buff.Document())
 
-			assert.Equal(t, c.expected, actual)
+			if c.err == "" {
+				assert.Equal(t, c.expected, actual)
+				assert.NoError(t, err)
+			} else {
+				assert.Equal(t, c.expected, actual)
+				assert.EqualError(t, err, c.err)
+			}
 		})
 	}
 }

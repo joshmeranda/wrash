@@ -288,7 +288,12 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 		}
 	}
 
-	return completer.Complete(doc)
+	suggestions, err := completer.Complete(doc)
+	if err != nil {
+		s.logger.Warn("completer encountered error", "err", err)
+	}
+
+	return suggestions
 }
 
 func (s *Session) Run() {
