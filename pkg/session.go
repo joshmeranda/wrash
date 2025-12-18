@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -69,6 +70,8 @@ type Session struct {
 	stdout io.Writer
 	stderr io.Writer
 	stdin  io.Reader
+
+	logger *slog.Logger
 
 	prompt      *prompt.Prompt
 	interactive bool // useful for disable tty requirement for testing
@@ -136,6 +139,10 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 		)
 	}
 
+	if session.logger == nil {
+		session.logger = slog.New(&discardHandler{})
+	}
+
 	return session, nil
 }
 
@@ -168,7 +175,7 @@ func (s *Session) runFile(path string) error {
 
 		app, found := s.apps[expanded[0]]
 		if !found {
-			return fmt.Errorf("found unkown builtin '%s' on line %d", expanded[0], n)
+			return fmt.Errorf("found unknown builtin '%s' on line %d", expanded[0], n)
 		}
 
 		if err := app.Run(expanded); err != nil {
@@ -186,7 +193,8 @@ func (s *Session) loadCompletions() error {
 	if os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("error loading completions: %w", err)
+		s.logger.Error("error loading completions", "err", err)
+		return nil
 	}
 
 	for _, entry := range entries {
@@ -227,7 +235,7 @@ func (s *Session) executor(str string) {
 		expanded = expanded[1:]
 		app, found := s.apps[expanded[0][2:]]
 		if !found {
-			fmt.Fprintf(s.stderr, "unknown command: %s\n", expanded[0])
+			fmt.Fprintf(s.stderr, "unknown builtin: %s\n", expanded[0])
 			s.previousExitCode = 127
 			return
 		}
@@ -256,7 +264,12 @@ func (s *Session) executor(str string) {
 
 func (s *Session) livePrefix() (string, bool) {
 	user := os.Getenv("USER")
-	wd, _ := os.Getwd()
+	wd, err := os.Getwd()
+
+	if err != nil {
+		s.logger.Error("failed to get working dir", "err", err)
+	}
+
 	return fmt.Sprintf("[%s %s] %s > ", user, wd, s.Base), true
 }
 
@@ -281,7 +294,7 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 func (s *Session) Run() {
 	defer func() {
 		if err := s.history.Sync(); err != nil {
-			fmt.Fprintf(s.stderr, "could not sync history: %s\n", err)
+			s.logger.Error("could not sync history", "err", err)
 		}
 	}()
 
