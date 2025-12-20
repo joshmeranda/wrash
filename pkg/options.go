@@ -1,10 +1,8 @@
 package wrash
 
 import (
-	"fmt"
 	"io"
 	"log/slog"
-	"os"
 
 	prompt "github.com/joshmeranda/go-prompt"
 )
@@ -70,14 +68,16 @@ func OptionConfigDir(configDir string) Option {
 
 func OptionLogFile(logFile string) Option {
 	return func(s *Session) error {
-		out, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+		handler, err := NewFileHandler(logFile, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		})
+
 		if err != nil {
-			return fmt.Errorf("failed to open= log file: %w", err)
+			return err
 		}
 
-		s.logger = slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{
-			Level: slog.LevelDebug,
-		}))
+		s.logger = slog.New(handler)
+
 		return nil
 	}
 }

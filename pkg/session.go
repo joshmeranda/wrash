@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"unicode"
 
@@ -300,7 +301,11 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 func (s *Session) Run() {
 	defer func() {
 		if err := recover(); err != nil {
-			s.logger.Error("", "err", err)
+			fmt.Println(fmt.Sprintf("%s", string(debug.Stack())))
+			s.logger.Error("encountered panic",
+				"err", err,
+				attrKeyStacktrace, string(debug.Stack()),
+			)
 		}
 
 		if err := s.history.Sync(); err != nil {
