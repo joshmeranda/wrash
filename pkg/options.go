@@ -2,7 +2,6 @@ package wrash
 
 import (
 	"io"
-	"log/slog"
 
 	prompt "github.com/joshmeranda/go-prompt"
 )
@@ -62,22 +61,6 @@ func OptionEnvironment(env map[string]string) Option {
 func OptionConfigDir(configDir string) Option {
 	return func(s *Session) error {
 		s.configDir = configDir
-		return nil
-	}
-}
-
-func OptionLogFile(logFile string) Option {
-	return func(s *Session) error {
-		handler, err := NewFileHandler(logFile, &slog.HandlerOptions{
-			Level: slog.LevelDebug,
-		})
-
-		if err != nil {
-			return err
-		}
-
-		s.logger = slog.New(handler)
-
 		return nil
 	}
 }

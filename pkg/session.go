@@ -73,8 +73,6 @@ type Session struct {
 	stderr io.Writer
 	stdin  io.Reader
 
-	logger *slog.Logger
-
 	prompt      *prompt.Prompt
 	interactive bool // useful for disable tty requirement for testing
 
@@ -141,10 +139,6 @@ func NewSession(base string, opts ...Option) (*Session, error) {
 		)
 	}
 
-	if session.logger == nil {
-		session.logger = slog.New(&discardHandler{})
-	}
-
 	return session, nil
 }
 
@@ -195,7 +189,7 @@ func (s *Session) loadCompletions() error {
 	if os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
-		s.logger.Error("error loading completions", "err", err)
+		slog.Error("error loading completions", "err", err)
 		return nil
 	}
 
@@ -269,7 +263,8 @@ func (s *Session) livePrefix() (string, bool) {
 	wd, err := os.Getwd()
 
 	if err != nil {
-		s.logger.Error("failed to get working dir", "err", err)
+		slog.Error("failed to get working dir", "err", err)
+		wd = "%HOME%"
 	}
 
 	return fmt.Sprintf("[%s %s] %s > ", user, wd, s.Base), true
@@ -290,10 +285,7 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 		}
 	}
 
-	suggestions, err := completer.Complete(doc)
-	if err != nil {
-		s.logger.Warn("completer encountered error", "err", err)
-	}
+	suggestions := completer.Complete(doc)
 
 	return suggestions
 }
@@ -302,20 +294,20 @@ func (s *Session) Run() {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println(fmt.Sprintf("%s", string(debug.Stack())))
-			s.logger.Error("encountered panic",
+			slog.Error("encountered panic",
 				"err", err,
 				attrKeyStacktrace, string(debug.Stack()),
 			)
 		}
 
 		if err := s.history.Sync(); err != nil {
-			s.logger.Error("could not sync history", "err", err)
+			slog.Error("could not sync history", "err", err)
 		} else {
-			s.logger.Info("synced history")
+			slog.Info("synced history")
 		}
 	}()
 
-	s.logger.Info("staring new Wrash session...",
+	slog.Info("staring new Wrash session...",
 		"interactive", s.interactive,
 		"configDir", s.configDir,
 		// todo: log history file

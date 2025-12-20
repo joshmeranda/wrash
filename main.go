@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -30,7 +31,7 @@ func run(ctx *cli.Context) error {
 		return env[s]
 	})
 	if err != nil {
-		return fmt.Errorf("could not expaqnd args: %s", err)
+		return fmt.Errorf("could not expand args: %s", err)
 	}
 
 	if _, err := exec.LookPath(expanded[0]); err != nil {
@@ -52,6 +53,15 @@ func run(ctx *cli.Context) error {
 		return fmt.Errorf("could not determine log file: %w", err)
 	}
 
+	handler, err := wrash.NewFileHandler(logFile, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})
+	if err != nil {
+		return err
+	}
+
+	slog.SetDefault(slog.New(handler))
+
 	entries, err := loadHistoryEntries(historyPath)
 	if err != nil {
 		return err
@@ -63,7 +73,6 @@ func run(ctx *cli.Context) error {
 		wrash.OptionHistory(history),
 		wrash.OptionEnvironment(env),
 		wrash.OptionConfigDir(configDir),
-		wrash.OptionLogFile(logFile),
 	)
 	if err != nil {
 		return err
