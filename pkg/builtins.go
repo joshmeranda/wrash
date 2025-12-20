@@ -224,7 +224,7 @@ func (s *Session) doEnv(ctx *cli.Context) error {
 			return fmt.Errorf("received unexpected arguments: %s", args[2:])
 		}
 	case "show":
-		keys := sort.StringSlice(lo.Keys[string](s.environ))
+		keys := sort.StringSlice(lo.Keys(s.environ))
 		sort.Sort(keys)
 
 		for _, key := range keys {
