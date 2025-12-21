@@ -1,18 +1,43 @@
-package wrash
+package log
 
 import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"strconv"
 	"time"
 )
 
+var logger *slog.Logger = nil
+
+func SetLogger(l *slog.Logger) {
+	logger = l
+}
+
+func Log(ctx context.Context, level slog.Level, msg string, args ...any) {
+	logger.Log(ctx, level, msg, args...)
+}
+
+func Debug(msg string, args ...any) {
+	logger.Debug(msg, args...)
+}
+
+func Info(msg string, args ...any) {
+	logger.Info(msg, args...)
+}
+
+func Warn(msg string, args ...any) {
+	logger.Warn(msg, args...)
+}
+
+func Error(msg string, args ...any) {
+	logger.Error(msg, args...)
+}
+
 const (
-	attrKeyStacktrace = "stacktrace"
+	AttrKeyStacktrace = "stacktrace"
 )
 
 // discardHandler is a slog.Handler that discards all log entires.
@@ -35,7 +60,7 @@ func (d *discardHandler) WithGroup(name string) slog.Handler {
 }
 
 type fileHandler struct {
-	out io.Writer
+	f *os.File
 
 	level  slog.Leveler
 	attrs  []slog.Attr
@@ -49,7 +74,7 @@ func NewFileHandler(path string, opts *slog.HandlerOptions) (slog.Handler, error
 	}
 
 	return &fileHandler{
-		out: out,
+		f: out,
 
 		level:  opts.Level,
 		attrs:  make([]slog.Attr, 0),
@@ -58,7 +83,7 @@ func NewFileHandler(path string, opts *slog.HandlerOptions) (slog.Handler, error
 }
 
 func (f *fileHandler) Enabled(_ context.Context, l slog.Level) bool {
-	return l > f.level.Level()
+	return l >= f.level.Level()
 }
 
 // Handle implements slog.Handler.
@@ -70,13 +95,14 @@ func (f *fileHandler) Handle(_ context.Context, r slog.Record) error {
 	buf.WriteString(r.Time.Format(time.RFC3339) + " ")
 	buf.WriteString(r.Level.String())
 
+	r.AddAttrs(f.attrs...)
 	r.AddAttrs(slog.Attr{
 		Key:   "msg",
 		Value: slog.StringValue(r.Message),
 	})
 
 	r.Attrs(func(attr slog.Attr) bool {
-		if attr.Key == attrKeyStacktrace {
+		if attr.Key == AttrKeyStacktrace {
 			stackTrace = attr.Value.String()
 			return true
 		}
@@ -97,7 +123,11 @@ func (f *fileHandler) Handle(_ context.Context, r slog.Record) error {
 
 	buf.WriteByte('\n')
 
-	if _, err := f.out.Write(buf.Bytes()); err != nil {
+	if _, err := f.f.Write(buf.Bytes()); err != nil {
+		return err
+	}
+
+	if err := f.f.Sync(); err != nil {
 		return err
 	}
 
@@ -106,7 +136,7 @@ func (f *fileHandler) Handle(_ context.Context, r slog.Record) error {
 
 func (f *fileHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &fileHandler{
-		out: f.out,
+		f: f.f,
 
 		level:  f.level,
 		attrs:  append(f.attrs, attrs...),
@@ -116,7 +146,7 @@ func (f *fileHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 
 func (f *fileHandler) WithGroup(group string) slog.Handler {
 	return &fileHandler{
-		out: f.out,
+		f: f.f,
 
 		level:  f.level,
 		attrs:  f.attrs,

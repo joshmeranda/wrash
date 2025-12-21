@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 
 	prompt "github.com/joshmeranda/go-prompt"
 	"github.com/joshmeranda/wrash/pkg/args"
+	"github.com/joshmeranda/wrash/pkg/log"
 	"github.com/samber/lo"
 	"github.com/urfave/cli/v2"
 )
@@ -189,7 +189,7 @@ func (s *Session) loadCompletions() error {
 	if os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
-		slog.Error("error loading completions", "err", err)
+		log.Warn("error loading completions", "err", err)
 		return nil
 	}
 
@@ -263,7 +263,7 @@ func (s *Session) livePrefix() (string, bool) {
 	wd, err := os.Getwd()
 
 	if err != nil {
-		slog.Error("failed to get working dir", "err", err)
+		log.Warn("failed to get working dir", "err", err)
 		wd = "%HOME%"
 	}
 
@@ -294,20 +294,20 @@ func (s *Session) Run() {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println(fmt.Sprintf("%s", string(debug.Stack())))
-			slog.Error("encountered panic",
+			log.Warn("encountered panic",
 				"err", err,
-				attrKeyStacktrace, string(debug.Stack()),
+				log.AttrKeyStacktrace, string(debug.Stack()),
 			)
 		}
 
 		if err := s.history.Sync(); err != nil {
-			slog.Error("could not sync history", "err", err)
+			log.Warn("could not sync history", "err", err)
 		} else {
-			slog.Info("synced history")
+			log.Info("synced history")
 		}
 	}()
 
-	slog.Info("staring new Wrash session...",
+	log.Info("staring new Wrash session...",
 		"interactive", s.interactive,
 		"configDir", s.configDir,
 		// todo: log history file

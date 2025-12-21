@@ -9,6 +9,7 @@ import (
 
 	wrash "github.com/joshmeranda/wrash/pkg"
 	"github.com/joshmeranda/wrash/pkg/args"
+	"github.com/joshmeranda/wrash/pkg/log"
 	"github.com/urfave/cli/v2"
 )
 
@@ -53,14 +54,14 @@ func run(ctx *cli.Context) error {
 		return fmt.Errorf("could not determine log file: %w", err)
 	}
 
-	handler, err := wrash.NewFileHandler(logFile, &slog.HandlerOptions{
+	handler, err := log.NewFileHandler(logFile, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
 	if err != nil {
 		return err
 	}
 
-	slog.SetDefault(slog.New(handler))
+	log.SetLogger(slog.New(handler))
 
 	entries, err := loadHistoryEntries(historyPath)
 	if err != nil {

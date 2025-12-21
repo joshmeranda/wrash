@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 
 	prompt "github.com/joshmeranda/go-prompt"
 	"github.com/joshmeranda/wrash/pkg/args"
+	"github.com/joshmeranda/wrash/pkg/log"
 )
 
 type Completer interface {
@@ -159,7 +159,7 @@ func (c *commandCompleter) Complete(doc prompt.Document) []prompt.Suggest {
 
 	parsedCmd, err := args.Parse(doc.TextBeforeCursor())
 	if err != nil {
-		slog.Debug("failed to parse before cursor: %s", err)
+		log.Debug("failed to parse before cursor: %s", err)
 		return []prompt.Suggest{}
 	}
 
