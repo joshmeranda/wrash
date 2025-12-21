@@ -54,7 +54,7 @@ func run(ctx *cli.Context) error {
 		return fmt.Errorf("could not determine log file: %w", err)
 	}
 
-	handler, err := log.NewFileHandler(logFile, &slog.HandlerOptions{
+	handler, err := log.NewFileHandler(logFile, &log.Options{
 		Level: slog.LevelInfo,
 	})
 	if err != nil {

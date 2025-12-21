@@ -127,10 +127,9 @@ func (c *commandCompleter) doCommand(doc prompt.Document) []prompt.Suggest {
 	cmd.Stderr = io.Discard
 
 	if err := cmd.Run(); err != nil {
-		// todo: add a system logger
-		fmt.Printf("Warning: failed to run complete: %s\n", err)
+		log.Warn("failed to run complete", "err", err)
 	} else if n := cmd.ProcessState.ExitCode(); n != 0 {
-		fmt.Printf("Warning: failed with code %d\n", n)
+		log.Warn("complete exited with non-zero exit code", "code", n)
 	}
 
 	lines := [][]byte{}
