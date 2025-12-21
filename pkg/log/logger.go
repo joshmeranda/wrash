@@ -17,22 +17,42 @@ func SetLogger(l *slog.Logger) {
 }
 
 func Log(ctx context.Context, level slog.Level, msg string, args ...any) {
+	if logger == nil {
+		return
+	}
+
 	logger.Log(ctx, level, msg, args...)
 }
 
 func Debug(msg string, args ...any) {
+	if logger == nil {
+		return
+	}
+
 	logger.Debug(msg, args...)
 }
 
 func Info(msg string, args ...any) {
+	if logger == nil {
+		return
+	}
+
 	logger.Info(msg, args...)
 }
 
 func Warn(msg string, args ...any) {
+	if logger == nil {
+		return
+	}
+
 	logger.Warn(msg, args...)
 }
 
 func Error(msg string, args ...any) {
+	if logger == nil {
+		return
+	}
+
 	logger.Error(msg, args...)
 }
 
@@ -59,6 +79,10 @@ func (d *discardHandler) WithGroup(name string) slog.Handler {
 	return d
 }
 
+type Options struct {
+	Level slog.Leveler
+}
+
 type fileHandler struct {
 	f *os.File
 
@@ -67,7 +91,7 @@ type fileHandler struct {
 	groups []string
 }
 
-func NewFileHandler(path string, opts *slog.HandlerOptions) (slog.Handler, error) {
+func NewFileHandler(path string, opts *Options) (slog.Handler, error) {
 	out, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
