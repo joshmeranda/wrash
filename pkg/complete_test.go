@@ -307,19 +307,6 @@ func TestCommandCompleter(t *testing.T) {
 			expected: []prompt.Suggest{},
 		},
 		{
-			name: "prompt passed to command via env",
-			line: "abc def 'ghi'",
-			completer: &commandCompleter{
-				command: []string{"echo", "$" + EnvCompletePrompt},
-			},
-
-			expected: []prompt.Suggest{
-				{
-					Text: "abc def 'ghi'",
-				},
-			},
-		},
-		{
 			name: "with parse error",
 			line: "echo 'unterminated single-quote",
 			completer: &commandCompleter{
@@ -327,6 +314,21 @@ func TestCommandCompleter(t *testing.T) {
 			},
 
 			expected: make([]prompt.Suggest, 0),
+		},
+
+		{
+			// Verify that the current status of the wrash prompt is passed to command completers via environment variable.
+			name: "prompt passed to command via env",
+			line: "abc def 'ghi' ",
+			completer: &commandCompleter{
+				command: []string{"bash", "-c", "echo $" + EnvCompleteCurrentPrompt},
+			},
+
+			expected: []prompt.Suggest{
+				{
+					Text: "abc def 'ghi'",
+				},
+			},
 		},
 	}
 

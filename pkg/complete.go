@@ -94,7 +94,7 @@ func (s *Session) builtinsCompleter(doc prompt.Document) []prompt.Suggest {
 }
 
 const (
-	EnvCompletePrompt = "WRASH_PROMPT"
+	EnvCompleteCurrentPrompt = "WRASH_CURRENT_PROMPT"
 )
 
 // commandCompleter is the in-memory store for a command commandCompleter.
@@ -122,7 +122,7 @@ func (c *commandCompleter) doCommand(doc prompt.Document) []prompt.Suggest {
 
 	out := bytes.NewBuffer(nil)
 	cmd := exec.CommandContext(ctx, c.command[0], c.command[1:]...)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", EnvCompletePrompt, doc.TextBeforeCursor()))
+	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", EnvCompleteCurrentPrompt, doc.TextBeforeCursor()))
 	cmd.Stdout = out
 	cmd.Stderr = io.Discard
 
