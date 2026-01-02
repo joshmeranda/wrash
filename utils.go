@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	wrash "github.com/joshmeranda/wrash/pkg"
+	"github.com/joshmeranda/wrash/pkg/log"
 	"github.com/samber/lo"
 	"gopkg.in/yaml.v3"
 )
@@ -47,6 +48,8 @@ func loadEnviron(extra map[string]string) map[string]string {
 }
 
 func loadHistoryEntries(path string) ([]*wrash.Entry, error) {
+	log.Debug("loading history from file", "file", path)
+
 	var entries []*wrash.Entry
 
 	data, err := os.ReadFile(path)

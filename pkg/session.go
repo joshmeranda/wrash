@@ -309,7 +309,6 @@ func (s *Session) Run() {
 	log.Info("staring new Wrash session...",
 		"interactive", s.interactive,
 		"configDir", s.configDir,
-		// todo: log history file
 	)
 
 	s.prompt.Run()
