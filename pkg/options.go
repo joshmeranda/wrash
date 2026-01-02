@@ -8,13 +8,6 @@ import (
 
 type Option func(*Session) error
 
-func OptionFrozen(freeze bool) Option {
-	return func(s *Session) error {
-		s.isFrozen = freeze
-		return nil
-	}
-}
-
 func OptionHistory(h prompt.History) Option {
 	return func(s *Session) error {
 		s.history = h.(*history)

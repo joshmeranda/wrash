@@ -84,7 +84,6 @@ type Session struct {
 	exitCalled       bool
 	previousExitCode int
 	apps             map[string]*cli.App
-	isFrozen         bool // todo: is never used
 }
 
 func NewSession(base string, opts ...Option) (*Session, error) {
