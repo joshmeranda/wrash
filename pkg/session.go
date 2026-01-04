@@ -292,11 +292,12 @@ func (s *Session) completer(doc prompt.Document) []prompt.Suggest {
 func (s *Session) Run() {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println(fmt.Sprintf("%s", string(debug.Stack())))
 			log.Warn("encountered panic",
 				"err", err,
+				"buffer", s.prompt.Input(),
 				log.AttrKeyStacktrace, string(debug.Stack()),
 			)
+			fmt.Println(debug.Stack())
 		}
 
 		if err := s.history.Sync(); err != nil {
