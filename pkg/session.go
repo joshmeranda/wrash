@@ -84,6 +84,8 @@ type Session struct {
 	exitCalled       bool
 	previousExitCode int
 	apps             map[string]*cli.App
+
+	trimRedundantBase bool
 }
 
 func NewSession(base string, opts ...Option) (*Session, error) {
@@ -206,17 +208,15 @@ func (s *Session) loadCompletions() error {
 func (s *Session) executor(str string) {
 	defer s.history.Clear()
 
-	str = strings.TrimSpace(str)
+	if s.trimRedundantBase && s.interactive {
+		str = strings.TrimPrefix(strings.TrimSpace(str), s.Base)
+	}
 
 	if str == "" {
 		return
 	}
 
-	if !strings.HasPrefix(str, s.Base) {
-		str = s.Base + " " + str
-	}
-
-	cmd, err := args.Parse(str)
+	cmd, err := args.Parse(s.Base + " " + str)
 	if err != nil {
 		fmt.Fprintf(s.stderr, "could not parse args: %s\n", err)
 		return

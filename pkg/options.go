@@ -57,3 +57,10 @@ func OptionConfigDir(configDir string) Option {
 		return nil
 	}
 }
+
+func OptionTrimRedundantBase(b bool) Option {
+	return func(s *Session) error {
+		s.trimRedundantBase = b
+		return nil
+	}
+}
