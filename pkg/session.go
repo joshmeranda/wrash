@@ -206,11 +206,17 @@ func (s *Session) loadCompletions() error {
 func (s *Session) executor(str string) {
 	defer s.history.Clear()
 
-	if strings.TrimSpace(str) == "" {
+	str = strings.TrimSpace(str)
+
+	if str == "" {
 		return
 	}
 
-	cmd, err := args.Parse(s.Base + " " + str)
+	if !strings.HasPrefix(str, s.Base) {
+		str = s.Base + " " + str
+	}
+
+	cmd, err := args.Parse(str)
 	if err != nil {
 		fmt.Fprintf(s.stderr, "could not parse args: %s\n", err)
 		return
