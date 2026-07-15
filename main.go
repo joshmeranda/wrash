@@ -78,6 +78,7 @@ func run(ctx *cli.Context) error {
 		wrash.OptionHistory(history),
 		wrash.OptionEnvironment(env),
 		wrash.OptionConfigDir(configDir),
+		wrash.OptionTrimRedundantBase(ctx.Bool("trim-repeated")),
 	)
 	if err != nil {
 		return err
@@ -93,9 +94,16 @@ func main() {
 		Name:        "wrash",
 		Version:     Version,
 		Description: "turn wrap any command line utility into an interactive shell",
-		Flags:       []cli.Flag{},
-		Before:      setup,
-		Action:      run,
+		Flags: []cli.Flag{
+			&cli.BoolFlag{
+				Name:    "trim-repeated",
+				Aliases: []string{"t"},
+				Usage:   "in interactive mode, remove repeated base command from first argument",
+				Value:   true,
+			},
+		},
+		Before: setup,
+		Action: run,
 		Authors: []*cli.Author{
 			{
 				Name:  "Josh Meranda",
